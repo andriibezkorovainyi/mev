@@ -1,0 +1,280 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "TokenErrorReporter",
+  "sourceName": "contracts/ErrorReporter.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "AcceptAdminPendingAdminCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "actualAddAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "AddReservesFactorFreshCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BorrowCashNotAvailable",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "BorrowComptrollerRejection",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BorrowFreshnessCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidateAccrueBorrowInterestFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidateAccrueCollateralInterestFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LiquidateCloseAmountIsUintMax",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LiquidateCloseAmountIsZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LiquidateCollateralFreshnessCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidateComptrollerRejection",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LiquidateFreshnessCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LiquidateLiquidatorIsBorrower",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidateRepayBorrowFreshFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidateSeizeComptrollerRejection",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LiquidateSeizeLiquidatorIsBorrower",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "MintComptrollerRejection",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MintFreshnessCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "RedeemComptrollerRejection",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RedeemFreshnessCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RedeemTransferOutNotPossible",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ReduceReservesAdminCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ReduceReservesCashNotAvailable",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ReduceReservesCashValidation",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ReduceReservesFreshCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "RepayBorrowComptrollerRejection",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RepayBorrowFreshnessCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SetComptrollerOwnerCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SetInterestRateModelFreshCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SetInterestRateModelOwnerCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SetPendingAdminOwnerCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SetReserveFactorAdminCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SetReserveFactorBoundsCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SetReserveFactorFreshCheck",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "errorCode",
+          "type": "uint256"
+        }
+      ],
+      "name": "TransferComptrollerRejection",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferNotAllowed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferNotEnough",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferTooMuch",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NO_ERROR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b5060b28061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c806369ab325014602d575b600080fd5b60336047565b604051603e91906063565b60405180910390f35b600081565b6000819050919050565b605d81604c565b82525050565b6000602082019050607660008301846056565b9291505056fea2646970667358221220fc4b84b8423b007b803c56577a27c62353fa759767dee07d0abfd085479d23f164736f6c634300080a0033",
+  "deployedBytecode": "0x6080604052348015600f57600080fd5b506004361060285760003560e01c806369ab325014602d575b600080fd5b60336047565b604051603e91906063565b60405180910390f35b600081565b6000819050919050565b605d81604c565b82525050565b6000602082019050607660008301846056565b9291505056fea2646970667358221220fc4b84b8423b007b803c56577a27c62353fa759767dee07d0abfd085479d23f164736f6c634300080a0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

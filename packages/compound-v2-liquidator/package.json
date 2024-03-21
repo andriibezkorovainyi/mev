@@ -1,0 +1,19 @@
+{
+  "name": "compound-v2-liquidator",
+  "module": "master-thread.ts",
+  "type": "module",
+  "private": "true",
+  "scripts": {
+    "dev:master": "bun run --watch main.ts",
+    "dev:mempool": "bun run workers/mempool.worker.ts --watch"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "ioredis": "^5.3.2"
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "wbtc2_irm": {
+    "address": "0xF2e5dB36B0682f2CD6bC805c3a4236194e01f4D5",
+    "contract": "JumpRateModelV2",
+    "description": "JumpRateModelV2",
+    "name": "wbtc2_irm"
+  },
+  "IRM_COMP_Updateable": {
+    "address": "0xd956188795ca6F4A74092ddca33E0Ea4cA3a1395",
+    "contract": "JumpRateModelV2",
+    "description": "JumpRateModelV2",
+    "name": "IRM_COMP_Updateable"
+  },
+  "Base200bps_Slope2000bps_Jump20000bps_Kink90": {
+    "name": "Base200bps_Slope2000bps_Jump20000bps_Kink90",
+    "contract": "JumpRateModel",
+    "description": "JumpRateModel baseRate=20000000000000000 multiplier=200000000000000000 jump=2000000000000000000 kink=900000000000000000",
+    "base": "20000000000000000",
+    "slope": "200000000000000000",
+    "jump": "2000000000000000000",
+    "kink": "900000000000000000",
+    "address": "0x6bc8fE27D0c7207733656595e73c0D5Cf7AfaE36"
+  },
+  "Base500bps_Slope1500bps": {
+    "name": "Base500bps_Slope1500bps",
+    "contract": "WhitePaperInterestRateModel",
+    "description": "WhitePaper baseRate=50000000000000000 multiplier=150000000000000000",
+    "base": "50000000000000000",
+    "slope": "150000000000000000",
+    "address": "0xd928c8ead620bb316d2cefe3caf81dc2dec6ff63"
+  },
+  "DSR_Kink_9000bps_Jump_12000bps_AssumedRF_500bps": {
+    "name": "DSR_Kink_9000bps_Jump_12000bps_AssumedRF_500bps",
+    "contract": "DAIInterestRateModel",
+    "description": "DAIInterestRateModel jump=1200000000000000000 kink=900000000000000000 pot=0x197e90f9fad81970ba7976f33cbd77088e5d7cf7 jug=0x19c0976f590d67707e62397c87829d896dc0f1f1",
+    "jump": "1200000000000000000",
+    "kink": "900000000000000000",
+    "pot": "0x197e90f9fad81970ba7976f33cbd77088e5d7cf7",
+    "jug": "0x19c0976f590d67707e62397c87829d896dc0f1f1",
+    "address": "0xec163986cC9a6593D6AdDcBFf5509430D348030F"
+  },
+  "DSR_Updateable": {
+    "name": "DSR_Updateable",
+    "contract": "DAIInterestRateModelV3",
+    "description": "DAIInterestRateModelV3 jump=1090000000000000000 kink=800000000000000000 pot=0x197e90f9fad81970ba7976f33cbd77088e5d7cf7 jug=0x19c0976f590d67707e62397c87829d896dc0f1f1 owner=0x6d903f6003cca6255d85cca4d3b5e5146dc33925",
+    "jump": "1090000000000000000",
+    "kink": "800000000000000000",
+    "pot": "0x197e90f9fad81970ba7976f33cbd77088e5d7cf7",
+    "jug": "0x19c0976f590d67707e62397c87829d896dc0f1f1",
+    "owner": "0x6d903f6003cca6255d85cca4d3b5e5146dc33925",
+    "address": "0xfeD941d39905B23D6FAf02C8301d40bD4834E27F"
+  },
+  "IRM_USDT_Updateable": {
+    "name": "IRM_USDT_Updateable",
+    "contract": "JumpRateModelV2",
+    "description": "JumpRateModelV2 baseRate=0 multiplier=40000000000000000 jump=1090000000000000000 kink=800000000000000000 owner=0x6d903f6003cca6255d85cca4d3b5e5146dc33925",
+    "base": "0",
+    "multiplier": "40000000000000000",
+    "jump": "1090000000000000000",
+    "kink": "800000000000000000",
+    "owner": "0x6d903f6003cca6255d85cca4d3b5e5146dc33925",
+    "address": "0xFB564da37B41b2F6B6EDcc3e56FbF523bD9F2012"
+  },
+  "IRM_USDC_Updateable": {
+    "name": "IRM_USDC_Updateable",
+    "contract": "LegacyJumpRateModelV2",
+    "description": "LegacyJumpRateModelV2 baseRate=0 multiplier=40000000000000000 jump=1090000000000000000 kink=800000000000000000 owner=0x6d903f6003cca6255d85cca4d3b5e5146dc33925",
+    "base": "0",
+    "multiplier": "40000000000000000",
+    "jump": "1090000000000000000",
+    "kink": "800000000000000000",
+    "owner": "0x6d903f6003cca6255d85cca4d3b5e5146dc33925",
+    "address": "0xD8EC56013EA119E7181d231E5048f90fBbe753c0"
+  },
+  "IRM_UNI_Updateable": {
+    "name": "IRM_UNI_Updateable",
+    "contract": "JumpRateModelV2",
+    "description": "JumpRateModelV2 with updateable params",
+    "address": "0xd88b94128ff2b8cf2d7886cd1c1e46757418ca2a"
+  },
+  "Base0bps_Slope2000bps": {
+    "name": "Base0bps_Slope2000bps",
+    "contract": "WhitePaperInterestRateModel",
+    "description": "WhitePaper baseRate=0 multiplier=200000000000000000",
+    "base": "0",
+    "slope": "200000000000000000",
+    "address": "0xc64C4cBA055eFA614CE01F4BAD8A9F519C4f8FaB"
+  },
+  "Base200bps_Slope1000bps": {
+    "name": "Base200bps_Slope1000bps",
+    "contract": "WhitePaperInterestRateModel",
+    "description": "WhitePaper baseRate=20000000000000000 multiplier=100000000000000000",
+    "base": "20000000000000000",
+    "slope": "100000000000000000",
+    "address": "0x0c3f8df27e1a00b47653fde878d68d35f00714c0"
+  },
+  "DSR_Kink_9000bps_Jump_12000bps_AssumedRF_20000bps": {
+    "name": "DSR_Kink_9000bps_Jump_12000bps_AssumedRF_20000bps",
+    "contract": "DAIInterestRateModelV2",
+    "description": "DAIInterestRateModelV2 jump=1200000000000000000 kink=900000000000000000 pot=0x197e90f9fad81970ba7976f33cbd77088e5d7cf7 jug=0x19c0976f590d67707e62397c87829d896dc0f1f1",
+    "jump": "1200000000000000000",
+    "kink": "900000000000000000",
+    "pot": "0x197e90f9fad81970ba7976f33cbd77088e5d7cf7",
+    "jug": "0x19c0976f590d67707e62397c87829d896dc0f1f1",
+    "address": "0x000000007675b5E1dA008f037A0800B309e0C493"
+  },
+  "Base500bps_Slope1200bps": {
+    "name": "Base500bps_Slope1200bps",
+    "contract": "WhitePaperInterestRateModel",
+    "description": "WhitePaper baseRate=50000000000000000 multiplier=120000000000000000",
+    "base": "50000000000000000",
+    "slope": "120000000000000000",
+    "address": "0xa1046abfc2598F48C44Fb320d281d3F3c0733c9a"
+  },
+  "Base200bps_Slope3000bps": {
+    "name": "Base200bps_Slope3000bps",
+    "contract": "WhitePaperInterestRateModel",
+    "description": "WhitePaper baseRate=20000000000000000 multiplier=300000000000000000",
+    "base": "20000000000000000",
+    "slope": "300000000000000000",
+    "address": "0xBAE04CbF96391086dC643e842b517734E214D698"
+  },
+  "Base200bps_Slope2000bps_Jump8000bps_Kink90": {
+    "name": "Base200bps_Slope2000bps_Jump8000bps_Kink90",
+    "contract": "JumpRateModel",
+    "description": "JumpRateModel baseRate=20000000000000000 multiplier=200000000000000000 jump=800000000000000000 kink=40000000000000000000",
+    "base": "20000000000000000",
+    "slope": "200000000000000000",
+    "jump": "800000000000000000",
+    "kink": "40000000000000000000",
+    "address": "0x40C0C2c565335fa9C4235aC8E1CbFE2c97BAC13A"
+  },
+  "Base200bps_Slope222bps_Kink90_Jump40": {
+    "name": "Base200bps_Slope222bps_Kink90_Jump40",
+    "contract": "JumpRateModel",
+    "description": "JumpRate model baseRate=20000000000000000 multiplier=22222222222200000 kink=900000000000000000 jump=40",
+    "base": "20000000000000000",
+    "slope": "22222222222200000",
+    "kink": "900000000000000000",
+    "jump": "40",
+    "address": "0x5562024784cc914069d67D89a28e3201bF7b57E7"
+  }
+}

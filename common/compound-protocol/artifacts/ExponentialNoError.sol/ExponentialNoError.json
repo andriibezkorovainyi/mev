@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ExponentialNoError",
+  "sourceName": "contracts/ExponentialNoError.sol",
+  "abi": [],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea264697066735822122004489d730640f1c5c2873b86c98a397bb0c80ed59fb9ef35993441b5fae7d32a64736f6c634300080a0033",
+  "deployedBytecode": "0x6080604052600080fdfea264697066735822122004489d730640f1c5c2873b86c98a397bb0c80ed59fb9ef35993441b5fae7d32a64736f6c634300080a0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
