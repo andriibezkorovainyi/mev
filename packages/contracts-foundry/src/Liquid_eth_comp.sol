@@ -2,10 +2,11 @@
 pragma solidity 0.8.20;
 
 import {IERC20} from "./interfaces/IERC20.sol";
-import {IMorpho, IMorphoBase } from "./interfaces/IMorpho.sol";
-import {IMorphoFlashLoanCallback} from "./interfaces/IMorphoCallbacks.sol";
+import {IMorpho, IMorphoBase } from "./interfaces/Morpho/IMorpho.sol";
+import {IMorphoFlashLoanCallback} from "./interfaces/Morpho/IMorphoCallbacks.sol";
 //import {IcMarket} from "./interfaces/IcMarket.sol"; //@note check this custom Interafaces works;
-import {CTokenInterface, CErc20Interface} from "./interfaces/CTokenInterfaces.sol";
+import {CTokenInterface, CErc20Interface} from "./interfaces/CompoundV2/CTokenInterfaces.sol";
+import {IUniswapV2Router02} from "./interfaces/UniswapV2/IUniswapV2Router02.sol";
 
 contract Liquid_eth_comp {
 
@@ -14,30 +15,33 @@ contract Liquid_eth_comp {
     address internal owner2; 
     address internal offchain;
     address public morpho;
+    address private uniV2Router;
     // mapping (address => address) cMarkets;
 
 
-    constructor(address _owner1, address _owner2, address _offchain, address _morpho) {
-        owner1   = _owner1;
-        owner2   = _owner2;
-        offchain = _offchain;
-        morpho    = _morpho;
+    constructor(address _owner1, address _owner2, address _offchain, address _morpho, address _uniV2Router) {
+        owner1      = _owner1;
+        owner2      = _owner2;
+        offchain    = _offchain;
+        morpho      = _morpho;
+        uniV2Router = _uniV2Router;
     }
 
     //need approve before call `liquidate`
     //@note not to forget make IERC20(token).approve(address(morpho), assets); 
-    function setApprove(address[] calldata _underlyingToken, address[] calldata _cMarkets, uint256[] calldata _amounts) external onlyOneOfOwners {
+    function setApprove(address[] calldata _tokenAddress, address[] calldata _cMarkets, uint256[] calldata _amounts) external onlyOneOfOwners {
         
         for (uint256 i = 0; i < _cMarkets.length; i++) {
-            IERC20(_underlyingToken[i]).approve(_cMarkets[i],_amounts[i]);
+            IERC20(_tokenAddress[i]).approve(_cMarkets[i],_amounts[i]);
         }
 
     }
 
     //@note to2: add source of flashLoan at offchain side to gas savings purposes and depends on source make 
-    function liquidate(address _underlyingToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral) external onlyOffchain {
-        bytes memory FLdata = abi.encode(_underlyingToken,_cMarket,_borrower,_repayAmount,_cTokenCollateral);
-        IMorphoBase(morpho).flashLoan(_underlyingToken,_repayAmount, FLdata);       
+    //@note pass deadline here like current timestamp + 30 sec;
+    function liquidate(address _repayToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral,uint256 deadline) external onlyOffchain {
+        bytes memory FLdata = abi.encode(_repayToken,_cMarket,_borrower,_repayAmount,_cTokenCollateral,deadline);
+        IMorphoBase(morpho).flashLoan(_repayToken,_repayAmount, FLdata);       
 
 
         //liquidatethan
@@ -47,18 +51,27 @@ contract Liquid_eth_comp {
     function onMorphoFlashLoan(uint256 _amount, bytes calldata FLdata) external returns(uint256 result) {
 
         require(msg.sender == address(morpho));
-        (address _underlyingToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral) = abi.decode(FLdata, (address,address,address,uint256,address));
-        
+        (address _repayToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral, uint256 deadline) = abi.decode(FLdata, (address,address,address,uint256,address,uint256));
+
+        uint256 balanceBefore = IERC20(CTokenInterface(_cTokenCollateral).underlying()).balanceOf(address(this));
         result = CErc20Interface(_cMarket).liquidateBorrow(_borrower,_repayAmount,CTokenInterface(_cTokenCollateral)); //CTokenInterface(_cTokenCollateral) hope this works
+        require(result == 0,"error-1");
+        uint256 balanceAfter = IERC20(CTokenInterface(_cTokenCollateral).underlying()).balanceOf(address(this));
+        
+        uint256 profit = balanceAfter - balanceBefore;
+        require(profit > 0,"error-2");
+        
+        address cTokenUnderlying = CTokenInterface(_cTokenCollateral).underlying();
+        
+        //swap, 
+        //uint amountIn,uint amountOutMin,address[] calldata path,address to,uint deadline
+        address[] memory path = new address[](2);
+        path[0] = CTokenInterface(_cTokenCollateral).underlying();
+        path[1] = _repayToken;
 
-        //check out balancce after liquidation, if everything ok than continiun to swap liquidate amount
-        //swap
-        //transfer FL back
-
-        IERC20(_underlyingToken).transfer(morpho,_repayAmount);
+        IUniswapV2Router02(uniV2Router).swapExactTokensForTokens(profit,0,path,address(this),deadline); //@note integrate control of slippage;
 
     }
-
 
 
     modifier onlyOffchain() {
