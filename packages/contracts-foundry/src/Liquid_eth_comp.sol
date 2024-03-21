@@ -5,7 +5,7 @@ pragma solidity 0.8.20;
 import {IERC20} "./interfaces/IERC20.sol";
 import {IMorpho} from "./interfaces/IMorpho.sol";
 import {IMorphoFlashLoanCallback} from "./interfaces/IMorphoCallbacks.sol";
-import {IcMarket} "./interfaces/IcMarket.sol"; //@note check this custom Interafaces works;
+import {IcMarket} "./interfaces/IcMarket.sol"; //@note check ша this custom Interaface works;
 import {CTokenInterface} from "./interfaces/CTokenInterfaces.sol";
 
 contract Liquid_eth_comp {
