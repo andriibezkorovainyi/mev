@@ -1,12 +1,11 @@
-
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.20;
 
-import {IERC20} "./interfaces/IERC20.sol";
-import {IMorpho} from "./interfaces/IMorpho.sol";
+import {IERC20} from "./interfaces/IERC20.sol";
+import {IMorpho, IMorphoBase } from "./interfaces/IMorpho.sol";
 import {IMorphoFlashLoanCallback} from "./interfaces/IMorphoCallbacks.sol";
-import {IcMarket} "./interfaces/IcMarket.sol"; //@note check ша this custom Interaface works;
-import {CTokenInterface} from "./interfaces/CTokenInterfaces.sol";
+//import {IcMarket} from "./interfaces/IcMarket.sol"; //@note check this custom Interafaces works;
+import {CTokenInterface, CErc20Interface} from "./interfaces/CTokenInterfaces.sol";
 
 contract Liquid_eth_comp {
 
@@ -22,7 +21,7 @@ contract Liquid_eth_comp {
         owner1   = _owner1;
         owner2   = _owner2;
         offchain = _offchain;
-        morho    = _morpho;
+        morpho    = _morpho;
     }
 
     //need approve before call `liquidate`
@@ -38,7 +37,7 @@ contract Liquid_eth_comp {
     //@note to2: add source of flashLoan at offchain side to gas savings purposes and depends on source make 
     function liquidate(address _underlyingToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral) external onlyOffchain {
         bytes memory FLdata = abi.encode(_underlyingToken,_cMarket,_borrower,_repayAmount,_cTokenCollateral);
-        IMorpho(morpho).flashloan(_underlyingToken,_repayAmount, bytes calldata FLdata);       
+        IMorphoBase(morpho).flashLoan(_underlyingToken,_repayAmount, FLdata);       
 
 
         //liquidatethan
@@ -50,7 +49,7 @@ contract Liquid_eth_comp {
         require(msg.sender == address(morpho));
         (address _underlyingToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral) = abi.decode(FLdata, (address,address,address,uint256,address));
         
-        result = IcMarket(_cMarket).liquidateBorrow(_borrower,_repayAmount,CTokenInterface(_cTokenCollateral)); //CTokenInterface(_cTokenCollateral) hope this works
+        result = CErc20Interface(_cMarket).liquidateBorrow(_borrower,_repayAmount,CTokenInterface(_cTokenCollateral)); //CTokenInterface(_cTokenCollateral) hope this works
 
         //check out balancce after liquidation, if everything ok than continiun to swap liquidate amount
         //swap
@@ -93,7 +92,7 @@ contract Liquid_eth_comp {
     }
 
     function sweepNative(address _to, uint256 _amount) external onlyOneOfOwners {
-        _to.call{value: _amount}();
+        _to.call{value: _amount}("");
     }
 
 
