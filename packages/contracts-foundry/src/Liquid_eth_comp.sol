@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.20;
 
-import {IERC20} from "./interfaces/IERC20.sol";
-import {IMorpho, IMorphoBase } from "./interfaces/Morpho/IMorpho.sol";
-import {IMorphoFlashLoanCallback} from "./interfaces/Morpho/IMorphoCallbacks.sol";
+import {IERC20} from "./Interfaces/IERC20.sol";
+import {IMorpho, IMorphoBase } from "./Interfaces/Morpho/IMorpho.sol";
+import {IMorphoFlashLoanCallback} from "./Interfaces/Morpho/IMorphoCallbacks.sol";
 //import {IcMarket} from "./interfaces/IcMarket.sol"; //@note check this custom Interafaces works;
-import {CTokenInterface, CErc20Interface} from "./interfaces/CompoundV2/CTokenInterfaces.sol";
-import {IUniswapV2Router02} from "./interfaces/UniswapV2/IUniswapV2Router02.sol";
+import {CTokenInterface, CErc20Interface} from "./Interfaces/CompoundV2/CTokenInterfaces.sol";
+import {IUniswapV2Router02} from "./Interfaces/UniswapV2/IUniswapV2Router02.sol";
 
 contract Liquid_eth_comp {
 
     uint constant VERSION = 1;
+
     address internal owner1;
     address internal owner2; 
     address internal offchain;
     address public morpho;
     address private uniV2Router;
+    //mapping (address => address) flashLoanSource; //underlyingToken->sourceOfFlashLoan
     // mapping (address => address) cMarkets;
 
 
@@ -27,17 +29,8 @@ contract Liquid_eth_comp {
         uniV2Router = _uniV2Router;
     }
 
-    //need approve before call `liquidate`
-    //@note not to forget make IERC20(token).approve(address(morpho), assets); 
-    function setApprove(address[] calldata _tokenAddress, address[] calldata _cMarkets, uint256[] calldata _amounts) external onlyOneOfOwners {
-        
-        for (uint256 i = 0; i < _cMarkets.length; i++) {
-            IERC20(_tokenAddress[i]).approve(_cMarkets[i],_amounts[i]);
-        }
 
-    }
-
-    //@note to2: add source of flashLoan at offchain side to gas savings purposes and depends on source make 
+    //@note 2do: add source of flashLoan at offchain side to gas savings purposes and depends on source make 
     //@note pass deadline here like current timestamp + 30 sec;
     function liquidate(address _repayToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral,uint256 deadline) external onlyOffchain {
         bytes memory FLdata = abi.encode(_repayToken,_cMarket,_borrower,_repayAmount,_cTokenCollateral,deadline);
@@ -56,6 +49,8 @@ contract Liquid_eth_comp {
         uint256 balanceBefore = IERC20(CTokenInterface(_cTokenCollateral).underlying()).balanceOf(address(this));
         result = CErc20Interface(_cMarket).liquidateBorrow(_borrower,_repayAmount,CTokenInterface(_cTokenCollateral)); //CTokenInterface(_cTokenCollateral) hope this works
         require(result == 0,"error-1");
+        
+        _cTokenCollateral.redeem(CTokenInterface(_cTokenCollateral).balanceOf(address(this)));
         uint256 balanceAfter = IERC20(CTokenInterface(_cTokenCollateral).underlying()).balanceOf(address(this));
         
         uint256 profit = balanceAfter - balanceBefore;
@@ -63,7 +58,7 @@ contract Liquid_eth_comp {
         
         address cTokenUnderlying = CTokenInterface(_cTokenCollateral).underlying();
         
-        //swap, 
+        //swap 
         //uint amountIn,uint amountOutMin,address[] calldata path,address to,uint deadline
         address[] memory path = new address[](2);
         path[0] = CTokenInterface(_cTokenCollateral).underlying();
@@ -73,6 +68,16 @@ contract Liquid_eth_comp {
 
     }
 
+    
+    //need approve before call `liquidate`
+    //@note not to forget make IERC20(token).approve(address(morpho), assets); 
+    function setApprove(address[] calldata _tokenAddress, address[] calldata _cMarkets, uint256[] calldata _amounts) external onlyOneOfOwners {
+        
+        for (uint256 i = 0; i < _cMarkets.length; i++) {
+            IERC20(_tokenAddress[i]).approve(_cMarkets[i],_amounts[i]);
+        }
+
+    }
 
     modifier onlyOffchain() {
         require(msg.sender == offchain);
