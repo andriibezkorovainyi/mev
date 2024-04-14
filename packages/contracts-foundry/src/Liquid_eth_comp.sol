@@ -66,8 +66,7 @@ contract LiquidBot_v1 {
         uint256[] calldata _repayAmounts,     //debt
         address[] calldata _cMarketCollaterals, //cMarket of collateral
         bytes[] calldata _path
-        ) external onlyOffchain {
-            console.log("gasleft()", gasleft());
+        ) external onlyOffchain {            
 
         for(uint256 i = 0; i < _repayTokens.length; i++) {
 
@@ -79,7 +78,7 @@ contract LiquidBot_v1 {
         }   
 
         for(uint256 i = 0; i < _repayTokens.length; i++) {
-            payToValidator(_repayTokens[i]); //@note need do update later with effective swap-path, not only direct repay tokens -> weth -> eth;
+            _payToValidator(_repayTokens[i]); //@note need do update later with effective swap-path, not only direct repay tokens -> weth -> eth;
         }
      }
     
@@ -92,7 +91,7 @@ contract LiquidBot_v1 {
             IWETH(weth).withdraw(_amount);
             ICEther(_cMarket).liquidateBorrow{value: _amount}(_borrower, CToken(_cMarketCollateral));
         } else {
-            uint result = CErc20Interface(_cMarket).liquidateBorrow(_borrower,_repayAmount,CTokenInterface(_cMarketCollateral));   //@audit try another interface if weth is collateral
+            uint result = CErc20Interface(_cMarket).liquidateBorrow(_borrower,_repayAmount,CTokenInterface(_cMarketCollateral));   
             require(result == 0,"result !0");
         }
 
@@ -101,16 +100,16 @@ contract LiquidBot_v1 {
 
             ICEther(_cMarketCollateral).redeem(ICEther(_cMarketCollateral).balanceOf(address(this)));
             IWETH(weth).deposit{value: (address(this).balance)}();
-            uint256 amountOut = swapExactInputMultihop(IERC20(weth).balanceOf(address(this)),abi.encodePacked(weth, uint24(3000), _repayToken));
+            uint256 amountOut = _swapExactInputMultihop(IERC20(weth).balanceOf(address(this)),abi.encodePacked(weth, uint24(3000), _repayToken));
 
         } else {
             
             CErc20Interface(_cMarketCollateral).redeem(CTokenInterface(_cMarketCollateral).balanceOf(address(this)));
-            uint256 amountOut = swapExactInputMultihop(IERC20(CErc20Interface(_cMarketCollateral).underlying()).balanceOf(address(this)), _path);
+            uint256 amountOut = _swapExactInputMultihop(IERC20(CErc20Interface(_cMarketCollateral).underlying()).balanceOf(address(this)), _path);
         }
     }
 
-    function swapExactInputMultihop(uint256 amountIn, bytes memory _path) internal returns (uint amountOut) {
+    function _swapExactInputMultihop(uint256 amountIn, bytes memory _path) internal returns (uint amountOut) {
 
         ISwapRouter.ExactInputParams memory params =
             ISwapRouter.ExactInputParams({
@@ -125,26 +124,24 @@ contract LiquidBot_v1 {
 
     }
 
-    function payToValidator(address _repayTokens) internal {
+    function _payToValidator(address _repayTokens) internal {
 
             if (_repayTokens == weth) {
                 uint256 netProfitInTokens = IERC20(_repayTokens).balanceOf(address(this));
                 uint256 toPayValidator    = netProfitInTokens * validatorShare / 10_000;
                 IWETH(weth).withdraw(toPayValidator);
                 block.coinbase.call{value: toPayValidator}(new bytes(0));
+                
             } else {
                 uint256 netProfitInTokens = IERC20(_repayTokens).balanceOf(address(this));
                 uint256 toPayValidator    = netProfitInTokens * validatorShare / 10_000;
-
-                uint256 amountOutWeth = swapExactInputMultihop(toPayValidator,abi.encodePacked(_repayTokens, uint24(3000), weth));
+                uint256 amountOutWeth = _swapExactInputMultihop(toPayValidator,abi.encodePacked(_repayTokens, uint24(3000), weth));
                 IWETH(weth).withdraw(amountOutWeth);
-                console.log("Eth bot balance before sending valik: ", address(this).balance);
                 block.coinbase.call{value: amountOutWeth}(new bytes(0));     
-                console.log("Eth bot balance after sending valik: ", address(this).balance);       
+    
             }
     
     }
-
 
     modifier onlyOffchain() {
         require(msg.sender == offchain);
