@@ -13,14 +13,14 @@ import "../src/Interfaces/IWETH.sol";
 import {ICEther} from "../src/Interfaces/CompoundV2/ICEther.sol";
 import {CToken} from "../src/CToken.sol";
 
-import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
+import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 
 
 contract LiquidBot_v1 {
 
     using SafeERC20 for IERC20;
     
-    string constant VERSION = "1.2";
+    string constant VERSION = "1";
     address public owner1;
     address public owner2; 
     address public offchain;
@@ -31,11 +31,9 @@ contract LiquidBot_v1 {
     address cETH         = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
 
     uint256 validatorShare = 5000; //50%
-    //FL source: underlying => source;
-    mapping(address => address) private flSource;
 
-    event LiquidateResult(uint256 result);
-
+    //underlying => does Morpho has it? if missed than true;
+    mapping (address => bool) private missedAtMorpho; 
 
     constructor(address _owner1, address _owner2, address _offchain, address _morpho, ISwapRouter _uniV3Router) {
         owner1         = _owner1;
@@ -45,16 +43,30 @@ contract LiquidBot_v1 {
         swapRouter    = _uniV3Router;
     }
 
-    function setFLsource(address _underlying, address _flSource) external onlyOneOfOwners {
-        flSource[_underlying] = _flSource;
-    }
-
-    function setApprove(address[] calldata _tokenAddress, address _target, uint256 _amount) external onlyOneOfOwners {
-        
-        for (uint256 i = 0; i < _tokenAddress.length; i++) {
-            IERC20(_tokenAddress[i]).safeApprove(_target, _amount); 
+    function setMissedTokens(address[] calldata _missedTokens) public onlyOneOfOwners {
+        uint tokensLen = _missedTokens.length;
+        for (uint256 i; i < tokensLen; i++) {
+            missedAtMorpho[_missedTokens[i]] = true;
         }
 
+    }
+
+    function setApprove(address[] calldata _tokenAddress, address[] memory _target, uint256 _amount, bool _every2every) external onlyOneOfOwners {
+        uint tokensLen = _tokenAddress.length;
+        uint targetLen = _target.length;
+
+        if (_every2every == false) {
+            for (uint256 i; i < tokensLen; i++) {
+
+                for (uint256 j; j < targetLen; j++) {
+                    IERC20(_tokenAddress[i]).safeApprove(_target[j], _amount); 
+                }
+            }
+        } else {
+            for (uint256 i; i < tokensLen; i++) {
+                IERC20(_tokenAddress[i]).safeApprove(_target[i], _amount); 
+            }
+        }
     }
 
 
@@ -69,17 +81,20 @@ contract LiquidBot_v1 {
         ) external onlyOffchain {            
 
         for(uint256 i = 0; i < _repayTokens.length; i++) {
-
-            if(flSource[_repayTokens[i]] == morpho) {          
+            
+            if (missedAtMorpho[_repayTokens[i]] == false) {
                 bytes memory FLdata = abi.encode(_repayTokens[i],_cMarkets[i],_borrowers[i],_repayAmounts[i],_cMarketCollaterals[i], _path[i]);
                 IMorphoBase(morpho).flashLoan(_repayTokens[i],_repayAmounts[i], FLdata);   
+            } else {
+                //2do
             }
-
         }   
 
         for(uint256 i = 0; i < _repayTokens.length; i++) {
             _payToValidator(_repayTokens[i]); //@note need do update later with effective swap-path, not only direct repay tokens -> weth -> eth;
+            _payToOwners(_repayTokens[i]);
         }
+
      }
     
     
@@ -124,6 +139,15 @@ contract LiquidBot_v1 {
 
     }
 
+    function _payToOwners(address _repayTokens) internal {
+
+        
+        IERC20(_repayTokens).transfer(owner1,IERC20(_repayTokens).balanceOf(address(this))/2);
+        IERC20(_repayTokens).transfer(owner2,IERC20(_repayTokens).balanceOf(address(this)));
+
+    
+    }
+
     function _payToValidator(address _repayTokens) internal {
 
             if (_repayTokens == weth) {
@@ -138,7 +162,7 @@ contract LiquidBot_v1 {
                 uint256 amountOutWeth = _swapExactInputMultihop(toPayValidator,abi.encodePacked(_repayTokens, uint24(3000), weth));
                 IWETH(weth).withdraw(amountOutWeth);
                 block.coinbase.call{value: amountOutWeth}(new bytes(0));     
-    
+                console.log("Amount to validator: ", amountOutWeth);
             }
     
     }
