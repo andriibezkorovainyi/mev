@@ -1,83 +1,150 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.20;
 
-import {IERC20} from "./Interfaces/IERC20.sol";
+import "forge-std/Test.sol"; 
+
 import {IMorpho, IMorphoBase } from "./Interfaces/Morpho/IMorpho.sol";
 import {IMorphoFlashLoanCallback} from "./Interfaces/Morpho/IMorphoCallbacks.sol";
-//import {IcMarket} from "./interfaces/IcMarket.sol"; //@note check this custom Interafaces works;
 import {CTokenInterface, CErc20Interface} from "./Interfaces/CompoundV2/CTokenInterfaces.sol";
 import {IUniswapV2Router02} from "./Interfaces/UniswapV2/IUniswapV2Router02.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import "../src/Interfaces/IWETH.sol";
+import {ICEther} from "../src/Interfaces/CompoundV2/ICEther.sol";
+import {CToken} from "../src/CToken.sol";
 
-contract Liquid_eth_comp {
-
-    uint constant VERSION = 1;
-
-    address internal owner1;
-    address internal owner2; 
-    address internal offchain;
-    address public morpho;
-    address private uniV2Router;
-    //mapping (address => address) flashLoanSource; //underlyingToken->sourceOfFlashLoan
-    // mapping (address => address) cMarkets;
+import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 
 
-    constructor(address _owner1, address _owner2, address _offchain, address _morpho, address _uniV2Router) {
-        owner1      = _owner1;
-        owner2      = _owner2;
-        offchain    = _offchain;
-        morpho      = _morpho;
-        uniV2Router = _uniV2Router;
-    }
+contract LiquidBot_v1 {
 
-
-    //@note 2do: add source of flashLoan at offchain side to gas savings purposes and depends on source make 
-    //@note pass deadline here like current timestamp + 30 sec;
-    function liquidate(address _repayToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral,uint256 deadline) external onlyOffchain {
-        bytes memory FLdata = abi.encode(_repayToken,_cMarket,_borrower,_repayAmount,_cTokenCollateral,deadline);
-        IMorphoBase(morpho).flashLoan(_repayToken,_repayAmount, FLdata);       
-
-
-        //liquidatethan
-        //returnFlashloan
-    }
-
-    function onMorphoFlashLoan(uint256 _amount, bytes calldata FLdata) external returns(uint256 result) {
-
-        require(msg.sender == address(morpho));
-        (address _repayToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cTokenCollateral, uint256 deadline) = abi.decode(FLdata, (address,address,address,uint256,address,uint256));
-
-        uint256 balanceBefore = IERC20(CTokenInterface(_cTokenCollateral).underlying()).balanceOf(address(this));
-        result = CErc20Interface(_cMarket).liquidateBorrow(_borrower,_repayAmount,CTokenInterface(_cTokenCollateral)); //CTokenInterface(_cTokenCollateral) hope this works
-        require(result == 0,"error-1");
-        
-        _cTokenCollateral.redeem(CTokenInterface(_cTokenCollateral).balanceOf(address(this)));
-        uint256 balanceAfter = IERC20(CTokenInterface(_cTokenCollateral).underlying()).balanceOf(address(this));
-        
-        uint256 profit = balanceAfter - balanceBefore;
-        require(profit > 0,"error-2");
-        
-        address cTokenUnderlying = CTokenInterface(_cTokenCollateral).underlying();
-        
-        //swap 
-        //uint amountIn,uint amountOutMin,address[] calldata path,address to,uint deadline
-        address[] memory path = new address[](2);
-        path[0] = CTokenInterface(_cTokenCollateral).underlying();
-        path[1] = _repayToken;
-
-        IUniswapV2Router02(uniV2Router).swapExactTokensForTokens(profit,0,path,address(this),deadline); //@note integrate control of slippage;
-
-    }
-
+    using SafeERC20 for IERC20;
     
-    //need approve before call `liquidate`
-    //@note not to forget make IERC20(token).approve(address(morpho), assets); 
-    function setApprove(address[] calldata _tokenAddress, address[] calldata _cMarkets, uint256[] calldata _amounts) external onlyOneOfOwners {
+    string constant VERSION = "1.2";
+    address public owner1;
+    address public owner2; 
+    address public offchain;
+    address immutable morpho;
+    ISwapRouter immutable swapRouter;
+    
+    address weth         = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address cETH         = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
+
+    uint256 validatorShare = 5000; //50%
+    //FL source: underlying => source;
+    mapping(address => address) private flSource;
+
+    event LiquidateResult(uint256 result);
+
+
+    constructor(address _owner1, address _owner2, address _offchain, address _morpho, ISwapRouter _uniV3Router) {
+        owner1         = _owner1;
+        owner2         = _owner2;
+        offchain       = _offchain;
+        morpho         = _morpho;
+        swapRouter    = _uniV3Router;
+    }
+
+    function setFLsource(address _underlying, address _flSource) external onlyOneOfOwners {
+        flSource[_underlying] = _flSource;
+    }
+
+    function setApprove(address[] calldata _tokenAddress, address _target, uint256 _amount) external onlyOneOfOwners {
         
-        for (uint256 i = 0; i < _cMarkets.length; i++) {
-            IERC20(_tokenAddress[i]).approve(_cMarkets[i],_amounts[i]);
+        for (uint256 i = 0; i < _tokenAddress.length; i++) {
+            IERC20(_tokenAddress[i]).safeApprove(_target, _amount); 
         }
 
     }
+
+
+    //if eth need to repay, need to pass in `_repayTokens` = weth
+    function liquidate(
+        address[] calldata _repayTokens,      //to pay native-debt-asset
+        address[] calldata _cMarkets,         //cMarket with bad debt
+        address[] calldata _borrowers,        //victim
+        uint256[] calldata _repayAmounts,     //debt
+        address[] calldata _cMarketCollaterals, //cMarket of collateral
+        bytes[] calldata _path
+        ) external onlyOffchain {
+            console.log("gasleft()", gasleft());
+
+        for(uint256 i = 0; i < _repayTokens.length; i++) {
+
+            if(flSource[_repayTokens[i]] == morpho) {          
+                bytes memory FLdata = abi.encode(_repayTokens[i],_cMarkets[i],_borrowers[i],_repayAmounts[i],_cMarketCollaterals[i], _path[i]);
+                IMorphoBase(morpho).flashLoan(_repayTokens[i],_repayAmounts[i], FLdata);   
+            }
+
+        }   
+
+        for(uint256 i = 0; i < _repayTokens.length; i++) {
+            payToValidator(_repayTokens[i]); //@note need do update later with effective swap-path, not only direct repay tokens -> weth -> eth;
+        }
+     }
+    
+    
+    function onMorphoFlashLoan(uint256 _amount, bytes calldata FLdata) external {
+        require(msg.sender == address(morpho));
+        (address _repayToken, address _cMarket, address _borrower, uint256 _repayAmount, address _cMarketCollateral, bytes memory _path) = abi.decode(FLdata, (address,address,address,uint256,address,bytes));
+
+        if (_repayToken == weth) {
+            IWETH(weth).withdraw(_amount);
+            ICEther(_cMarket).liquidateBorrow{value: _amount}(_borrower, CToken(_cMarketCollateral));
+        } else {
+            uint result = CErc20Interface(_cMarket).liquidateBorrow(_borrower,_repayAmount,CTokenInterface(_cMarketCollateral));   //@audit try another interface if weth is collateral
+            require(result == 0,"result !0");
+        }
+
+
+        if (_cMarketCollateral == cETH) {
+
+            ICEther(_cMarketCollateral).redeem(ICEther(_cMarketCollateral).balanceOf(address(this)));
+            IWETH(weth).deposit{value: (address(this).balance)}();
+            uint256 amountOut = swapExactInputMultihop(IERC20(weth).balanceOf(address(this)),abi.encodePacked(weth, uint24(3000), _repayToken));
+
+        } else {
+            
+            CErc20Interface(_cMarketCollateral).redeem(CTokenInterface(_cMarketCollateral).balanceOf(address(this)));
+            uint256 amountOut = swapExactInputMultihop(IERC20(CErc20Interface(_cMarketCollateral).underlying()).balanceOf(address(this)), _path);
+        }
+    }
+
+    function swapExactInputMultihop(uint256 amountIn, bytes memory _path) internal returns (uint amountOut) {
+
+        ISwapRouter.ExactInputParams memory params =
+            ISwapRouter.ExactInputParams({
+                path: _path,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: amountIn,
+                amountOutMinimum: 0
+            });
+
+        amountOut = swapRouter.exactInput(params);
+
+    }
+
+    function payToValidator(address _repayTokens) internal {
+
+            if (_repayTokens == weth) {
+                uint256 netProfitInTokens = IERC20(_repayTokens).balanceOf(address(this));
+                uint256 toPayValidator    = netProfitInTokens * validatorShare / 10_000;
+                IWETH(weth).withdraw(toPayValidator);
+                block.coinbase.call{value: toPayValidator}(new bytes(0));
+            } else {
+                uint256 netProfitInTokens = IERC20(_repayTokens).balanceOf(address(this));
+                uint256 toPayValidator    = netProfitInTokens * validatorShare / 10_000;
+
+                uint256 amountOutWeth = swapExactInputMultihop(toPayValidator,abi.encodePacked(_repayTokens, uint24(3000), weth));
+                IWETH(weth).withdraw(amountOutWeth);
+                console.log("Eth bot balance before sending valik: ", address(this).balance);
+                block.coinbase.call{value: amountOutWeth}(new bytes(0));     
+                console.log("Eth bot balance after sending valik: ", address(this).balance);       
+            }
+    
+    }
+
 
     modifier onlyOffchain() {
         require(msg.sender == offchain);
@@ -111,6 +178,10 @@ contract Liquid_eth_comp {
 
     function sweepNative(address _to, uint256 _amount) external onlyOneOfOwners {
         _to.call{value: _amount}("");
+    }
+
+    function setvalidatorShare(uint256 _share) external onlyOneOfOwners {
+        validatorShare = _share;
     }
 
 
