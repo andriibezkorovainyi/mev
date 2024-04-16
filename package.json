@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "prod": "pm2 start ecosystem.config.cjs --env production",
+    "build:compv2": "bun build --target bun --outfile packages/compound-v2-liquidator/main.js packages/compound-v2-liquidator/main.ts",
+    "prod": "pm2 start ecosystem.config.cjs",
     "lint": "eslint --ext .ts .",
     "format": "prettier --write .",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -24,5 +25,5 @@
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
-  "dependencies": { "ethers": "^6.11.1", "web3": "^4.5.0" }
+  "dependencies": { "telegraf": "^4.16.3", "web3": "^4.5.0", "ioredis": "^5.3.2" }
 }

@@ -5,24 +5,29 @@ import type { Web3Module } from '../web3/web3.module.ts';
 import type { ComptrollerModule } from '../comptroller/comptroller.module.ts';
 import type { MarketModule } from '../market/market.module.ts';
 import type { PriceOracleModule } from '../price-oracle/price-oracle.module.ts';
+import type { ValidatorProxyModule } from '../validator-proxy/validator-proxy.module.ts';
 
 export class CollectorModule extends Module {
   constructor(
-    private readonly storageModule: StorageModule,
-    private readonly web3Module: Web3Module,
-    private readonly comptrollerModule: ComptrollerModule,
-    private readonly marketModule: MarketModule,
-    private readonly priceOracleModule: PriceOracleModule,
+    storageModule: StorageModule,
+    web3Module: Web3Module,
+    comptrollerModule: ComptrollerModule,
+    marketModule: MarketModule,
+    priceOracleModule: PriceOracleModule,
+    validatorProxyModule: ValidatorProxyModule,
   ) {
     super();
 
-    const storageService = this.storageModule.getService('storageService');
-    const web3Service = this.web3Module.getService('web3Service');
+    const storageService = storageModule.getService('storageService');
+    const web3Service = web3Module.getService('web3Service');
     const comptrollerService =
-      this.comptrollerModule.getService('comptrollerService');
-    const marketService = this.marketModule.getService('marketService');
+      comptrollerModule.getService('comptrollerService');
+    const marketService = marketModule.getService('marketService');
     const priceOracleService =
-      this.priceOracleModule.getService('priceOracleService');
+      priceOracleModule.getService('priceOracleService');
+    const validatorProxyService = validatorProxyModule.getService(
+      'validatorProxyService',
+    );
 
     const collectorService = new CollectorService(
       storageService,
@@ -30,6 +35,7 @@ export class CollectorModule extends Module {
       comptrollerService,
       marketService,
       priceOracleService,
+      validatorProxyService,
     );
 
     this.registerService('collectorService', collectorService);

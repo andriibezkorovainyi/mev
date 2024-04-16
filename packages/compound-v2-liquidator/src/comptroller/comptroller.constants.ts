@@ -7,7 +7,7 @@ export enum CompEventName {
   NewCloseFactor = 'NewCloseFactor',
   NewCollateralFactor = 'NewCollateralFactor',
   NewPriceOracle = 'NewPriceOracle',
-  // NewLiquidationIncentive = 'NewLiquidationIncentive',
+  NewLiquidationIncentive = 'NewLiquidationIncentive',
 }
 
 export const CompEventToOutputMap = {
@@ -16,6 +16,6 @@ export const CompEventToOutputMap = {
   [CompEventName.MarketExited]: 'cToken,account',
   [CompEventName.NewCloseFactor]: 'newCloseFactorMantissa',
   [CompEventName.NewCollateralFactor]: 'cToken,newCollateralFactorMantissa',
-  // [CompEventName.NewLiquidationIncentive]: 'newLiquidationIncentiveMantissa',
+  [CompEventName.NewLiquidationIncentive]: 'newLiquidationIncentiveMantissa',
   [CompEventName.NewPriceOracle]: 'newPriceOracle',
 };

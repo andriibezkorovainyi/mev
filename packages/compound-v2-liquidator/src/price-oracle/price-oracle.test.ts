@@ -1,23 +1,22 @@
-import { beforeEach, describe } from 'bun:test';
+import { beforeAll, describe, it } from 'bun:test';
 import { PriceOracleService } from './price-oracle.service.ts';
-import { Web3Service } from '../web3/web3.service.ts';
 import { StorageService } from '../storage/storage.service.ts';
-import { CacheService } from '../cache/cache.service.ts';
-import Env from '../../utils/constants/env.ts';
+import MasterModule from '../master/master.module.ts';
 
 describe('PriceOracle', () => {
-  let web3Service: Web3Service;
-  let cacheService: CacheService;
   let storageService: StorageService;
   let priceOracleService: PriceOracleService;
 
-  beforeEach(() => {
-    web3Service = new Web3Service(Env.HTTPS_RPC_URL);
-    cacheService = new CacheService();
-    storageService = new StorageService(cacheService);
-    priceOracleService = new PriceOracleService(web3Service, storageService);
+  beforeAll(async () => {
+    const masterModule = new MasterModule(undefined);
+    storageService = masterModule.storageModule.getService('storageService');
+    priceOracleService =
+      masterModule.priceOracleModule.getService('priceOracleService');
 
-    // await storageService.init();
+    await storageService.initPointerHeight();
+    await storageService.initTokenConfigs();
+    await storageService.initMarkets();
+    await storageService.initComptroller();
   });
   // const prices = {
   //   '0xb8612e326dd19fc983e73ae3bc23fa1c78a3e01478574fa7ceb5b57e589dcebd':
@@ -56,33 +55,117 @@ describe('PriceOracle', () => {
   //   reporterMultiplier: 10000000000000000n,
   //   isUniswapReversed: false,
   // };
-  const TokenConfig = {
-    cToken: '0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5',
-    underlying: '0x0000000000000000000000000000000000000000',
-    symbolHash:
-      '0xaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4',
-    baseUnit: 1000000000000000000n,
-    priceSource: 2,
-    fixedPrice: 0,
-    uniswapMarket: '0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8',
-    reporter: '0x264BDDFD9D93D48d759FBDB0670bE1C6fDd50236',
-    reporterMultiplier: 10000000000000000n,
-    isUniswapReversed: true,
-  };
+  // const TokenConfig = {
+  //   cToken: '0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5',
+  //   underlying: '0x0000000000000000000000000000000000000000',
+  //   symbolHash:
+  //     '0xaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4',
+  //   baseUnit: 1000000000000000000n,
+  //   priceSource: 2,
+  //   fixedPrice: 0,
+  //   uniswapMarket: '0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8',
+  //   reporter: '0x264BDDFD9D93D48d759FBDB0670bE1C6fDd50236',
+  //   reporterMultiplier: 10000000000000000n,
+  //   isUniswapReversed: true,
+  // };
 
-  // it('should calculate underlying price correct', async () => {
-  //   // @ts-ignore
-  //   const price = prices[TokenConfig.symbolHash];
-  //   const baseUnit = TokenConfig.baseUnit;
-  //
-  //   const underlyingPrice = mulDiv(BigInt(1e30), price, baseUnit);
-  //   console.log('underlyingPrice', underlyingPrice);
-  //
-  //   const fetchedPrice = await priceOracleService.fetchUnderlyingPrice(
-  //     TokenConfig.cToken,
-  //   );
-  //   console.log('fetchedPrice', fetchedPrice);
-  // });
+  it('should process prices from transmit/PriceUpdated/PriceGuarded', async () => {
+    // const poinerHeight = storageService.getPointerHeight();
+    // const logs = await priceOracleService.collectLogs(
+    //   poinerHeight - 2000,
+    //   poinerHeight,
+    // );
+    // const markets = Object.values(storageService.getMarkets());
+    //
+    // for (const market of markets) {
+    //   const tokenConfig = storageService.getTokenConfig(market.address);
+    //   const price = await priceOracleService.fetchPrice(
+    //     market.underlyingSymbol,
+    //   );
+    //   tokenConfig.price = price;
+    //
+    //   console.log('tokenConfig', tokenConfig);
+    //
+    //   const underlyingPrice = priceOracleService.getUnderlyingPrice(
+    //     tokenConfig!,
+    //   );
+    //
+    //   const fetchedUnderlyingPrice =
+    //     await priceOracleService.fetchUnderlyingPrice(market.address);
+    //
+    //   try {
+    //     expect(underlyingPrice).toEqual(fetchedUnderlyingPrice);
+    //   } catch (error) {
+    //     console.log('market', market.symbol, market.address);
+    //     console.error(error);
+    //   }
+    // }
+  }, 60_000);
+
+  it('should update price on event', async () => {
+    // const pointerHeight = storageService.getPointerHeight();
+    //
+    // const log = {
+    //   address: '0x50ce56A3239671Ab62f185704Caedf626352741e',
+    //   blockNumber: pointerHeight,
+    //   symbolHash:
+    //     '0xe98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9',
+    // };
+    //
+    // await priceOracleService.priceUpdated(log);
+    //
+    // const tokenConfig = storageService.getTokenConfigBySymbolHash(
+    //   log.symbolHash,
+    // );
+    //
+    // const market = storageService.getMarket(tokenConfig!.marketAddress);
+    // const underlyingPrice = await priceOracleService.fetchUnderlyingPrice(
+    //   market.address,
+    //   pointerHeight,
+    // );
+    //
+    // expect(market.underlyingPriceMantissa).toEqual(underlyingPrice);
+  });
+
+  it('should get all aggregatos', async () => {
+    const tokenConfigs = storageService.getTokenConfigs();
+
+    console.log('tokenConfigs', tokenConfigs);
+    const aggregators = Object.values(tokenConfigs).map(
+      (config) => config.aggregator,
+    );
+
+    console.log('aggregators', aggregators);
+  });
+
+  it('should calculate underlying price correct', async () => {
+    // const symbolHash =
+    //   '0x3ec6762bdf44eb044276fec7d12c1bb640cb139cfd533f93eeebba5414f5db55';
+    //
+    // const tokenConfig =
+    //   storageService.getTokenConfigsBySymbolHash(symbolHash)[0];
+    //
+    // console.log('tokenConfig', tokenConfig);
+    // const market = storageService.getMarket(tokenConfig!.marketAddress);
+    //
+    // const convertedPrice = priceOracleService.convertReportedPrice(
+    //   tokenConfig,
+    //   249087n,
+    // );
+    //
+    // tokenConfig.price = convertedPrice;
+    //
+    // const underlyingPrice = BigInt(
+    //   priceOracleService.getUnderlyingPrice(tokenConfig!).toString() + '00',
+    // );
+    //
+    // const fetchedPrice = await priceOracleService.fetchUnderlyingPrice(
+    //   market.address,
+    //   19663245,
+    // );
+    //
+    // expect(underlyingPrice).toEqual(fetchedPrice);
+  });
 
   // it('should fetch token config', async () => {
   //   const symbolHash =

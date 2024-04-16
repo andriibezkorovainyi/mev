@@ -5,14 +5,15 @@ export const addRetries = async (
   ...args: unknown[]
 ) => {
   // console.log('args', args);
-  for (let retries = 10; retries > 0; retries--) {
+  for (let retries = 15; retries > 0; retries--) {
     try {
       return await someFunction(...args.filter(Boolean));
     } catch (e) {
-      console.error(e, `arguments: ${args.join(', ')}`);
+      console.error(e, `arguments: ${JSON.stringify(args)}`);
       console.warn(`retrying function -> ${someFunction.name}`);
       await delay();
     }
   }
-  return null;
+
+  throw new Error(`Failed to execute function -> ${someFunction.name}`);
 };

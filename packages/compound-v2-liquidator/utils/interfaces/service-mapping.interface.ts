@@ -9,12 +9,18 @@ import type { Web3Service } from '../../src/web3/web3.service.ts';
 import type { ComptrollerService } from '../../src/comptroller/comptroller.service.ts';
 import type { MarketService } from '../../src/market/market.service.ts';
 import type { PriceOracleService } from '../../src/price-oracle/price-oracle.service.ts';
-import type { AggregatorService } from '../../src/aggregator/aggregator.service.ts';
 import type { LiquidatorService } from '../../src/liquidator/liquidator.service.ts';
+import type { ValidatorProxyService } from '../../src/validator-proxy/validator-proxy.service.ts';
+import type { BundleService } from '../../src/bundle/bundle.service.ts';
+import type { BlockService } from '../../src/block/block.service.ts';
+import type { TelegramService } from '../../src/telegram/telegram.service.ts';
 
 export type ServiceIdentifier =
+  | 'telegramService'
+  | 'blockService'
+  | 'bundleService'
   | 'liquidatorService'
-  | 'aggregatorService'
+  | 'validatorProxyService'
   | 'priceOracleService'
   | 'interestRateModelService'
   | 'workerService'
@@ -29,8 +35,11 @@ export type ServiceIdentifier =
   | 'cacheService';
 
 export interface ServiceMapping {
+  telegramService: TelegramService;
+  blockService: BlockService;
+  bundleService: BundleService;
   liquidatorService: LiquidatorService;
-  aggregatorService: AggregatorService;
+  validatorProxyService: ValidatorProxyService;
   priceOracleService: PriceOracleService;
   workerService: WorkerService;
   marketService: MarketService;
