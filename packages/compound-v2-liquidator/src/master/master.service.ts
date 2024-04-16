@@ -3,6 +3,8 @@ import type { WorkerService } from '../worker/worker.service.ts';
 import type { Web3Service } from '../web3/web3.service.ts';
 import type { CollectorService } from '../collector/collector.service.ts';
 import { Service } from '../../utils/classes/service.ts';
+import type { BlockService } from '../block/block.service.ts';
+import Env from '../../utils/constants/env.ts';
 
 export class MasterService extends Service {
   constructor(
@@ -10,6 +12,7 @@ export class MasterService extends Service {
     public readonly workerService: WorkerService,
     public readonly web3Service: Web3Service,
     private readonly collectorService: CollectorService,
+    private readonly blockService: BlockService,
   ) {
     super();
   }
@@ -17,15 +20,17 @@ export class MasterService extends Service {
   async init() {
     this.listenForShutdown();
 
-    // await this.accountService.init();
-
     await this.storageService.init().catch(this.cleanUpAndExit.bind(this));
 
-    this.workerService.init();
+    await this.collectorService
+      .collectPastEvents()
+      .catch(this.cleanUpAndExit.bind(this));
 
-    await this.collectorService.init().catch(this.cleanUpAndExit.bind(this));
-    //
-    // this.web3Service.init().catch(this.cleanUpAndExit.bind(this));
+    Env.SHOULD_FETCH_EXCHANGE_RATES = true;
+
+    this.blockService.listenForNewBlocks();
+
+    this.workerService.init();
   }
 
   listenForShutdown() {
@@ -42,7 +47,7 @@ export class MasterService extends Service {
     console.log(message);
 
     this.workerService.terminate();
-    this.web3Service.clearSubAndDisconnect();
+    this.blockService.terminate();
 
     process.exit(1);
   }

@@ -1,10 +1,14 @@
 import { addRetries } from '../../../../common/helpers/addRetries.ts';
 import { Service } from '../../utils/classes/service.ts';
-import type { EthExecutionAPI, Log, Web3BaseProvider } from 'web3';
+import type { EthExecutionAPI, Web3BaseProvider } from 'web3';
 import { Web3 } from 'web3';
+import Env from '../../utils/constants/env.ts';
 
 import type { ICallContractMethodParams } from './web3.interfaces.ts';
 import { filterAbi } from '../../utils/helpers/array.helpers.ts';
+import type { IDecodedLog } from '../../utils/interfaces/decoded-log.interface.ts';
+import { ethers, Wallet } from 'ethers';
+import type { ICreateRawLiquidationTxParams } from '../../utils/interfaces/create-raw-liquidation-tx-params.interface.ts';
 
 export class Web3Service extends Service {
   readonly web3: Web3;
@@ -20,32 +24,9 @@ export class Web3Service extends Service {
 
       this.web3 = new Web3(this.websocketProvider);
     }
-
-    // this.webSocketProvider = new Web3.providers.WebsocketProvider(
-    //   this.env.WSS_RPC_URL,
-    // );
-    //
-    // this.socketWeb3 = new Web3(this.webSocketProvider);
   }
 
   async init() {}
-
-  async subscribeToPendingTxes() {
-    console.debug('method -> web3Service.subscribeToPendingTxes');
-
-    const subscription = await this.web3.eth.subscribe(
-      'pendingTransactions',
-      (error) => {
-        if (error) {
-          console.error('error', error);
-        }
-      },
-    );
-
-    subscription.on('error', console.error);
-
-    return subscription;
-  }
 
   async getTransaction(txHash: string) {
     console.debug('method -> web3Service.getTransaction');
@@ -73,6 +54,42 @@ export class Web3Service extends Service {
     return data;
   }
 
+  async executeContractMethod({
+    abi,
+    address,
+    args = [] as any[],
+    from = '',
+    privateKey = '',
+    blockNumber = 'latest',
+  }) {
+    const contract = new this.web3.eth.Contract([abi], address);
+    const data = contract.methods[abi.name](...args).encodeABI();
+
+    // const gasEstimate = await contract.methods[abi.name](...args).estimateGas({
+    //   from,
+    // });
+
+    const transaction = {
+      from,
+      to: address,
+      gas: '100000',
+      maxPriorityFeePerGas: this.web3.utils.toWei('2', 'gwei'), // Укажите актуальное значение
+      maxFeePerGas: this.web3.utils.toWei('100', 'gwei'),
+      data: data,
+    };
+
+    const signedTransaction = await this.web3.eth.accounts.signTransaction(
+      transaction,
+      privateKey,
+    );
+
+    return this.sendRawTransaction(signedTransaction.rawTransaction);
+  }
+
+  async sendRawTransaction(rawTx: string) {
+    return this.web3.eth.sendSignedTransaction(rawTx);
+  }
+
   // async collectContractEvents(abi, address: string) {
   //   const contract = new this.httpWeb3.eth.Contract(abi, address);
   //
@@ -97,24 +114,30 @@ export class Web3Service extends Service {
       const _eventNames = eventNames.slice(i, i + 3);
       const _abi = filterAbi(abi, _eventNames);
 
-      promises.push(
-        new Promise((resolve) => {
-          resolve(this.getFilteredLogs(addresses, _abi, fromBlock, toBlock));
-        }),
-      );
+      promises.push(this.getFilteredLogs(addresses, _abi, fromBlock, toBlock));
     }
 
     return (await Promise.all(promises)).flat();
   }
 
-  async getTransactionLogs(txHash: string): Promise<Log[]> {
-    console.debug('method -> web3Service.getTransactionLogs');
+  // async getTransactionLogs(txHash: string): Promise<Log[]> {
+  //   console.debug('method -> web3Service.getTransactionLogs');
+  //
+  //   const method = this.web3.eth.getTransactionReceipt.bind(this.web3.eth);
+  //
+  //   const receipt = await addRetries(method, txHash);
+  //
+  //   return receipt.logs;
+  // }
 
-    const method = this.web3.eth.getTransactionReceipt.bind(this.web3.eth);
+  async getFlashbotsSignature(body: string) {
+    console.log('method -> web3Service.getFlashbotsSignature');
+    // ethers.js
+    const wallet = new Wallet(Env.PRIVATE_KEY);
+    const signature =
+      wallet.address + ':' + (await wallet.signMessage(ethers.id(body)));
 
-    const receipt = await addRetries(method, txHash);
-
-    return receipt.logs;
+    return signature;
   }
 
   async getFilteredLogs(
@@ -148,7 +171,7 @@ export class Web3Service extends Service {
     return logs;
   }
 
-  decodeLogs(logs, abi) {
+  decodeLogs(logs, abi): IDecodedLog[] {
     const eventSignatureHashes = this.getSignatureHashes(abi);
 
     // console.log('eventSignatureHashes', eventSignatureHashes);
@@ -168,10 +191,23 @@ export class Web3Service extends Service {
       Object.assign(decodedLog, {
         address: Web3.utils.toChecksumAddress(log.address),
         eventName: abiItem.name,
-        blockNumber: log.blockNumber,
+        blockNumber: Number(log.blockNumber),
         transactionIndex: Number(log.transactionIndex),
         logIndex: Number(log.logIndex),
       });
+
+      // if (
+      //   Object.values(decodedLog).includes(
+      //     '0x1164236009849Feec5F941f6F652ee6928Bdc7bb',
+      //   )
+      // ) {
+      //   console.log('decodedLog', decodedLog);
+      //
+      //   saveOrUpdateObjectFileSync(
+      //     decodedLog,
+      //     '0x1164236009849Feec5F941f6F652ee6928Bdc7bb.json',
+      //   );
+      // }
 
       return decodedLog;
     });
@@ -180,7 +216,7 @@ export class Web3Service extends Service {
   }
 
   getSignatureHashes(abi: any[]) {
-    console.log('method -> web3Service.getSignatureHashes');
+    // console.log('method -> web3Service.getSignatureHashes');
     // console.log(abi);
     return abi.map((item) =>
       this.web3.utils.sha3(
@@ -209,7 +245,7 @@ export class Web3Service extends Service {
   }
 
   decodeArguments(abiItem: any, txInput: string) {
-    console.debug('method -> web3Service.decodeArguments');
+    // console.debug('method -> web3Service.decodeArguments');
 
     const decodedArguments = this.web3.eth.abi.decodeParameters(
       abiItem.inputs,
@@ -220,7 +256,7 @@ export class Web3Service extends Service {
   }
 
   decodeParameters(typesArray: string[], reportData: string) {
-    console.debug('method -> web3Service.decodeParameters');
+    // console.debug('method -> web3Service.decodeParameters');
 
     const decodedData = this.web3.eth.abi.decodeParameters(
       typesArray,
@@ -230,16 +266,79 @@ export class Web3Service extends Service {
     return decodedData;
   }
 
+  async createAndSignTx({
+    abi,
+    address,
+    args,
+    gas,
+    maxFeePerGas,
+  }: ICreateRawLiquidationTxParams) {
+    const contract = new this.web3.eth.Contract([abi], address);
+    const data = contract.methods[abi.name](...args).encodeABI();
+
+    const transaction = {
+      from: Env.FROM_ADDRESS,
+      to: address,
+      gas,
+      maxFeePerGas,
+      maxPriorityFeePerGas: this.web3.utils.toWei('0.01', 'gwei'),
+      value: 0n,
+      data,
+    };
+
+    const signedTransaction = await this.web3.eth.accounts.signTransaction(
+      transaction,
+      Env.PRIVATE_KEY,
+    );
+
+    return signedTransaction;
+  }
+
+  async createRawTestTx() {
+    // web3.js
+    const transaction = {
+      from: Env.FROM_ADDRESS,
+      to: Env.LIQUIDATOR_CONTRACT_ADDRESS,
+      gas: '22000',
+      maxFeePerGas: this.web3.utils.toWei('100', 'gwei'),
+      maxPriorityFeePerGas: this.web3.utils.toWei('10', 'gwei'),
+      value: 0n,
+    };
+
+    const signedTransaction = await this.web3.eth.accounts.signTransaction(
+      transaction,
+      Env.PRIVATE_KEY,
+    );
+
+    return signedTransaction.rawTransaction;
+  }
+
+  async getNonce(address: string) {
+    return this.web3.eth.getTransactionCount(Env.FROM_ADDRESS);
+  }
+
   clearSubAndDisconnect() {
     if (this.websocketProvider) {
-      // console.log(this.web3?.subscriptionManager.regi steredSubscriptions);
+      // console.log(this.web3?.subscriptionManager.registeredSubscriptions);
 
       this.web3?.subscriptionManager.clear();
       this.websocketProvider.removeAllListeners!('connect');
       this.websocketProvider.removeAllListeners!('error');
       this.websocketProvider.removeAllListeners!('end');
       this.websocketProvider.disconnect();
-      console.log('subscription cleared and socket is closed');
+      console.log('subscription is cleared and socket is closed');
     }
+  }
+
+  async getNetworkBaseFee() {
+    const block = await this.web3.eth.getBlock('latest');
+
+    return this.web3.utils.fromWei(block.baseFeePerGas!, 'gwei');
+  }
+
+  async getNetworkGasPrice() {
+    const gasPrice = await this.web3.eth.getGasPrice();
+
+    return this.web3.utils.fromWei(gasPrice, 'gwei');
   }
 }

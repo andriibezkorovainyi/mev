@@ -5,7 +5,7 @@ import Env from '../../utils/constants/env.ts';
 import { StorageService } from '../storage/storage.service.ts';
 import { CacheService } from '../cache/cache.service.ts';
 import { PriceOracleService } from '../price-oracle/price-oracle.service.ts';
-import { AggregatorService } from '../aggregator/aggregator.service.ts';
+import { ValidatorProxyService } from '../validator-proxy/validatorProxyService.ts';
 import { AccountService } from '../account/account.service.ts';
 
 export const comptrollerLogsMock = [
@@ -353,7 +353,7 @@ describe('Comptroller', () => {
   let web3Service: Web3Service;
   let accountService: AccountService;
   let pticeOracleService: PriceOracleService;
-  let aggregatorService: AggregatorService;
+  let aggregatorService: ValidatorProxyService;
   let comptrollerService: ComptrollerService;
 
   beforeEach(async () => {
@@ -362,7 +362,7 @@ describe('Comptroller', () => {
     web3Service = new Web3Service(Env.HTTPS_RPC_URL);
     accountService = new AccountService(storageService, web3Service);
     pticeOracleService = new PriceOracleService(web3Service, storageService);
-    aggregatorService = new AggregatorService(storageService, web3Service);
+    aggregatorService = new ValidatorProxyService(storageService, web3Service);
 
     comptrollerService = new ComptrollerService(
       storageService,
@@ -376,12 +376,17 @@ describe('Comptroller', () => {
   });
 
   it('should create market and tokenConfig by cToken', async () => {
-    const cToken = '0xB3319f5D18Bc0D84dD1b4825Dcde5d5f7266d407';
-
-    const market = await comptrollerService.createMarket(cToken);
-    const tokenConfgs = storageService.getTokenConfigs();
-
-    console.log('market', market, 'tokenConfigs', tokenConfgs);
+    const comptroller = storageService.getComptroller();
+    console.log(
+      'liquidationIncentive',
+      comptroller.liquidationIncentiveMantissa! / BigInt(1e18),
+    );
+    // const cToken = '0xB3319f5D18Bc0D84dD1b4825Dcde5d5f7266d407';
+    //
+    // const market = await comptrollerService.createMarket(cToken);
+    // const tokenConfgs = storageService.getTokenConfigs();
+    //
+    // console.log('market', market, 'tokenConfigs', tokenConfgs);
   });
 
   // it('should create market from log', async () => {

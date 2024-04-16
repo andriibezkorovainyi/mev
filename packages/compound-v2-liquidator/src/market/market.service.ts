@@ -6,80 +6,81 @@ import { MarketEventName, MarketEventToOutput } from './market.constants.ts';
 import CToken from '../../../../common/compound-protocol/artifacts/CToken.sol/CToken.json';
 import {
   filterAbi,
+  findAsset,
   getAbiItem,
   sortLogs,
 } from '../../utils/helpers/array.helpers.ts';
 import CErc20 from '../../../../common/compound-protocol/artifacts/CErc20.sol/CErc20.json';
+import Env from '../../utils/constants/env.ts';
+import type { IDecodedLog } from '../../utils/interfaces/decoded-log.interface.ts';
 
 export class MarketService extends Service {
   constructor(
     private readonly storageService: StorageService,
     private readonly web3Service: Web3Service,
     private readonly accountService: AccountService,
-    // private readonly interestRateModelService: InterestRateModelService,
   ) {
     super();
   }
 
-  processLogs(logs) {
+  async processLogs(logs: IDecodedLog[]) {
     for (const log of logs) {
       switch (log.eventName) {
         case MarketEventName.AccrueInterest:
-          this.accrueInterest(log);
+          await this.accrueInterest(log);
           break;
         case MarketEventName.Transfer:
-          this.transfer(log);
-          break;
-        case MarketEventName.Mint:
-          this.mint(log);
-          break;
-        case MarketEventName.Redeem:
-          this.redeem(log);
+          await this.transfer(log);
           break;
         case MarketEventName.Borrow:
-          this.borrow(log);
+          await this.borrow(log);
           break;
         case MarketEventName.RepayBorrow:
-          this.repayBorrow(log);
+          await this.repayBorrow(log);
           break;
         case MarketEventName.ReservesAdded:
-          this.reservesAdded(log);
+          await this.reservesAdded(log);
           break;
         case MarketEventName.ReservesReduced:
-          this.reservesReduced(log);
+          await this.reservesReduced(log);
           break;
         case MarketEventName.NewReserveFactor:
           this.newReserveFactor(log);
           break;
+        default:
+          break;
+        // case MarketEventName.Mint:
+        //   await this.mint(log);
+        //   break;
+        // case MarketEventName.Redeem:
+        //   await this.redeem(log);
+        //   break;
         // case MarketEventName.LiquidateBorrow:
-        // this.liquidateBorrow(log);
-        // break;
+        //   this.liquidateBorrow(log);
+        //   break;
       }
     }
   }
 
-  accrueInterest(log) {
+  async accrueInterest(log) {
     console.debug('function -> accrueInterest');
 
     const [key1, key2, key3, key4] =
       MarketEventToOutput[MarketEventName.AccrueInterest].split(',');
 
-    const interestAccumulated: bigint = log[key1]; // можно высчитать borrowRate;
+    // const interestAccumulated: bigint = log[key1]; // можно высчитать borrowRate;
     const borrowIndex: bigint = log[key2];
-    const totalBorrows: bigint = log[key3];
-    const cashPrior: bigint | undefined = log[key4];
+    // const totalBorrows: bigint = log[key3];
+    // const cashPrior: bigint | undefined = log[key4];
 
     const market = this.storageService.getMarket(log.address);
     // console.log('before market', market);
 
-    market.totalBorrows = totalBorrows;
     market.borrowIndex = borrowIndex;
 
-    if (cashPrior) {
-      market.totalCash = cashPrior;
-    }
-
     market.accrualBlockNumber = BigInt(log.blockNumber);
+
+    await this.fetchAndUpdateExchangeRate(log.address, log.blockNumber);
 
     // try {
     //   const [actualTotalReserves, totalCash] = await Promise.all([
@@ -93,8 +94,7 @@ export class MarketService extends Service {
     // }
   }
 
-  private transfer(log) {
-    // Фиксирует только переводы между аккаунтами, не учитываем маркеты
+  private async transfer(log) {
     console.debug('function -> transfer');
     const [key1, key2, key3] =
       MarketEventToOutput[MarketEventName.Transfer].split(',');
@@ -109,89 +109,117 @@ export class MarketService extends Service {
     const accountTo = this.storageService.getAccount(to);
     const marketTo = this.storageService.getMarket(to);
 
-    if (marketFrom || marketTo) {
-      return;
+    // if (marketFrom || marketTo) {
+    //   return;
+    // }
+
+    if (marketFrom) {
+      // skip
+    } else if (accountFrom) {
+      await this.accountService.defundAccountBalance(
+        accountFrom,
+        cToken,
+        amount,
+        log,
+      );
     }
 
-    if (accountFrom) {
-      this.accountService.defundAccountBalance(accountFrom, cToken, amount);
-    }
-
-    if (accountTo) {
+    if (marketTo) {
+      // skip
+    } else if (accountTo) {
       this.accountService.fundAccountTokens(accountTo, cToken, amount);
     } else {
       this.accountService.createAccountWithToken(to, cToken, amount);
     }
 
-    // if (accountTo) {
-    //   this.accountService.fundAccountTokens(accountTo, cToken, amount);
-    // } else {
-    //   this.accountService.createAccountWithToken(to, cToken, amount);
-    // }
-
-    // const marketFrom = this.storageService.getMarket(from);
-    // const marketTo = this.storageService.getMarket(to);
-    // Обрабатывается событием Mint
-    // if (marketFrom) {
-    //   return;
-    // }
-
-    // if (accountFrom) {
-    //
-    // } else {
-    //   throw new Error('Account not found');
-    // }
-
-    // if (marketTo) {
-    //   // Обрабатывается событием Redeem
-    // } else
+    await this.fetchAndUpdateExchangeRate(cToken, log.blockNumber);
   }
 
-  private mint(log) {
-    console.debug('function -> mint');
-    const [key1, key2, key3] =
-      MarketEventToOutput[MarketEventName.Mint].split(',');
+  async updateUnderlyingPrice(
+    cToken: string,
+    newPriceMantissa: bigint,
+    blockNumber: number,
+  ) {
+    const market = this.storageService.getMarket(cToken);
+    if (!market) {
+      throw new Error('Market not found\n' + `marketAddress: ${cToken}`);
+    }
 
-    const minter = log[key1];
-    const mintAmount = log[key2];
-    const mintTokens = log[key3];
+    market.underlyingPriceMantissa = newPriceMantissa;
 
-    const market = this.storageService.getMarket(log.address);
-    const account = this.storageService.getAccount(minter);
+    await this.fetchAndUpdateExchangeRate(cToken, blockNumber);
+  }
 
-    market.totalSupply += mintTokens;
-    market.totalCash += mintAmount;
+  async fetchAndUpdateExchangeRate(cToken: string, blockNumber: number) {
+    console.debug('method -> updateExchangeRate');
+    const market = this.storageService.getMarket(cToken);
 
-    if (account) {
-      this.accountService.fundAccountTokens(account, log.address, mintTokens);
-    } else {
-      this.accountService.createAccountWithToken(
-        minter,
-        log.address,
-        mintTokens,
+    if (
+      // Env.SHOULD_FETCH_EXCHANGE_RATES &&
+      blockNumber >= Env.NORMAL_PRICE_ORACLE_START_BLOCK &&
+      blockNumber > market.exchangeRateLastUpdateBlock
+    ) {
+      market.exchangeRateMantissa = await this.fetchExchangeRateMantissa(
+        cToken,
+        blockNumber,
       );
+      market.exchangeRateLastUpdateBlock = blockNumber;
     }
   }
 
-  private redeem(log) {
-    console.debug('function -> redeem');
+  // async mint(log) {
+  //   console.debug('function -> mint');
+  //   const [key1, key2, key3] =
+  //     MarketEventToOutput[MarketEventName.Mint].split(',');
+  //
+  //   const minter = log[key1];
+  //   const mintTokens = log[key3];
+  //
+  //   const account = this.storageService.getAccount(minter);
+  //
+  //   if (account) {
+  //     this.accountService.fundAccountTokens(account, log.address, mintTokens);
+  //   } else {
+  //     this.accountService.createAccountWithToken(
+  //       minter,
+  //       log.address,
+  //       mintTokens,
+  //     );
+  //   }
+  //
+  //   await this.fetchAndUpdateExchangeRate(log.address, log.blockNumber);
+  // }
 
-    const [key1, key2, key3] =
-      MarketEventToOutput[MarketEventName.Redeem].split(',');
-
-    const cToken = log.address;
-    const redeemer = log[key3];
-    const redeemAmount = log[key1];
-    const redeemTokens = log[key2];
-    const market = this.storageService.getMarket(log.address);
-    const account = this.storageService.getAccount(redeemer);
-    if (!account) throw new Error('Account not found');
-
-    market.totalCash -= redeemAmount;
-    market.totalSupply -= redeemTokens;
-
-    this.accountService.defundAccountBalance(account, cToken, redeemTokens);
-  }
+  // private async redeem(log) {
+  //   console.debug('function -> redeem');
+  //
+  //   const [key1, key2, key3] =
+  //     MarketEventToOutput[MarketEventName.Redeem].split(',');
+  //
+  //   const cToken = log.address;
+  //   const redeemer = log[key3];
+  //   // const redeemAmount = log[key1];
+  //   const redeemTokens = log[key2];
+  //   // const market = this.storageService.getMarket(log.address);
+  //
+  //   const account = this.storageService.getAccount(redeemer);
+  //
+  //   if (!account) {
+  //     return;
+  //   }
+  //
+  //   // market.totalCash -= redeemAmount;
+  //   // market.totalSupply -= redeemTokens;
+  //
+  //   await this.accountService.defundAccountBalance(
+  //     account,
+  //     cToken,
+  //     redeemTokens,
+  //     log.blockNumber,
+  //   );
+  //
+  //   await this.fetchAndUpdateExchangeRate(cToken, log.blockNumber);
+  // }
 
   private newReserveFactor(log) {
     console.debug('function -> newReserveFactor');
@@ -212,23 +240,19 @@ export class MarketService extends Service {
   // const seizeTokens = log[key5];
   // }
 
-  private borrow(log) {
+  private async borrow(log) {
     console.debug('function -> borrow');
 
     const [key1, key2, key3, key4] =
       MarketEventToOutput[MarketEventName.Borrow].split(',');
 
-    // console.log('BORROWER', log[key1]);
-
     const cToken = log.address;
     const borrower = log[key1];
-    const amount = log[key2];
+    // const amount = log[key2];
     const accountBorrows = log[key3];
-    const totalBorrows = log[key4];
+    // const totalBorrows = log[key4];
 
     const market = this.storageService.getMarket(cToken);
-    market.totalBorrows = totalBorrows;
-    market.totalCash -= amount;
 
     const account = this.storageService.getAccount(borrower);
 
@@ -236,7 +260,7 @@ export class MarketService extends Service {
       throw new Error('Account not found');
     }
 
-    // console.log(log.blockNumber);
+    await this.fetchAndUpdateExchangeRate(cToken, log.blockNumber);
 
     this.accountService.addBorrows(
       account,
@@ -246,58 +270,58 @@ export class MarketService extends Service {
     );
   }
 
-  private repayBorrow(log) {
+  private async repayBorrow(log) {
     console.debug('function -> repayBorrow');
     const [key1, key2, key3, key4, key5] =
       MarketEventToOutput[MarketEventName.RepayBorrow].split(',');
 
     const borrower = log[key2];
-    const repayAmount = log[key3];
+    // const repayAmount = log[key3];
     const accountBorrows = log[key4];
-    const totalBorrowsNew = log[key5];
+    // const totalBorrowsNew = log[key5];
     const cToken = log.address;
 
     const market = this.storageService.getMarket(cToken);
     const account = this.storageService.getAccount(borrower);
-    if (!account) throw new Error('Account not found');
-    const asset = account.assets.find(({ address }) => cToken === address);
-    if (!asset) throw new Error('Asset not found');
+    // console.log(
+    //   'account',
+    //   account,
+    //   'cToken',
+    //   cToken,
+    //   'repayAmount',
+    //   repayAmount,
+    //   'accountBorrows',
+    //   accountBorrows,
+    // );
 
-    market.totalBorrows = totalBorrowsNew;
-    market.totalCash += repayAmount;
+    if (!account) {
+      return;
+    }
+    const asset = findAsset(account, cToken);
+
+    if (!asset) {
+      return;
+    }
 
     asset.principal = accountBorrows;
     asset.interestIndex = market.borrowIndex;
+
+    await this.fetchAndUpdateExchangeRate(cToken, log.blockNumber);
   }
 
-  private reservesAdded(log) {
+  private async reservesAdded(log) {
     console.debug('function -> reservesAdded');
 
-    const [key1, key2] =
-      MarketEventToOutput[MarketEventName.ReservesAdded].split(',');
+    // const [key1, key2] =
+    //   MarketEventToOutput[MarketEventName.ReservesAdded].split(',');
 
-    const addAmount = log[key1];
-    const newTotalReserves = log[key2];
-
-    const market = this.storageService.getMarket(log.address);
-
-    market.totalReserves = newTotalReserves;
-    market.totalCash += addAmount;
+    await this.fetchAndUpdateExchangeRate(log.address, log.blockNumber);
   }
 
-  private reservesReduced(log) {
+  private async reservesReduced(log) {
     console.debug('function -> reservesReduced');
 
-    const [key1, key2] =
-      MarketEventToOutput[MarketEventName.ReservesReduced].split(',');
-
-    const reduceAmount = log[key1];
-    const newTotalReserves = log[key2];
-
-    const market = this.storageService.getMarket(log.address);
-
-    market.totalReserves = newTotalReserves;
-    market.totalCash -= reduceAmount;
+    await this.fetchAndUpdateExchangeRate(log.address, log.blockNumber);
   }
 
   fetchBorrowRateMantissa(cToken: string) {
@@ -382,22 +406,29 @@ export class MarketService extends Service {
       toBlock,
     );
 
-    let decodedLogs = this.web3Service.decodeLogs(logs, abi);
-
-    decodedLogs = sortLogs(decodedLogs);
+    const decodedLogs = sortLogs(this.web3Service.decodeLogs(logs, abi));
 
     return decodedLogs;
   }
 
-  // function defundAccountBalance(
-  //   _account: AccountEntity,
-  //   _cToken: string,
-  //   _amount: bigint,
-  // ) {
-  //   const assetOrToken = findAssetOrToken(_account, _cToken);
-  // }
+  async fetchBalanceOf(tokenAddress: string, account: string) {
+    const { abi } = CErc20;
+    const balanceOfItem = getAbiItem(abi, 'function', 'balanceOf');
+    const balance = await this.web3Service.callContractMethod({
+      address: tokenAddress,
+      abi: balanceOfItem,
+      args: [account],
+    });
 
-  async fetchExchangeRate(cToken: string, blockNumber?: number) {
+    if (balance === undefined) {
+      throw new Error('Balance not found');
+    }
+
+    return balance;
+  }
+
+  async fetchExchangeRateMantissa(cToken: string, blockNumber?: number) {
+    console.debug('method -> fetchExchangeRateMantissa');
     const { abi } = CToken;
     const exchangeRateItem = getAbiItem(abi, 'function', 'exchangeRateStored');
     const exchangeRate = await this.web3Service.callContractMethod({
@@ -411,6 +442,34 @@ export class MarketService extends Service {
     }
 
     return exchangeRate;
+  }
+
+  async executeBorrow({ address, from, privateKey, amount }) {
+    const abi = CErc20.abi.find((a) => a.name === 'borrow');
+
+    const receipt = await this.web3Service.executeContractMethod({
+      address,
+      abi,
+      from,
+      privateKey,
+      args: [amount],
+    });
+
+    return receipt;
+  }
+
+  async executeMint({ address, from, privateKey, amount }) {
+    const abi = CErc20.abi.find((a) => a.name === 'mint');
+
+    const receipt = await this.web3Service.executeContractMethod({
+      address,
+      abi,
+      from,
+      privateKey,
+      args: [amount],
+    });
+
+    return receipt;
   }
 
   async fetchCollateralFactor(cToken: string, blockNumber?: number) {
@@ -431,6 +490,48 @@ export class MarketService extends Service {
     }
 
     return collateralFactor;
+  }
+
+  async fetchUnderlingAddress(cToken: string, blockNumber?: number) {
+    const underlyingAbiItem = getAbiItem(CErc20.abi, 'function', 'underlying');
+
+    const underlyingAddress = await this.web3Service.callContractMethod({
+      abi: underlyingAbiItem,
+      address: cToken,
+      blockNumber,
+    });
+
+    if (!underlyingAddress) throw new Error("Couldn't get underlyingAddress");
+
+    return underlyingAddress;
+  }
+
+  async fetchSymbol(cToken: string, blockNumber?: number) {
+    const symbolAbiItem = getAbiItem(CErc20.abi, 'function', 'symbol');
+
+    const symbol = await this.web3Service.callContractMethod({
+      abi: symbolAbiItem,
+      address: cToken,
+    });
+
+    if (!symbol) throw new Error("Couldn't get symbol");
+
+    return symbol;
+  }
+
+  async fetchDecimalsErc20(cToken: string, blockNumber?: number) {
+    const decimalsAbiItem = getAbiItem(CErc20.abi, 'function', 'decimals');
+
+    const decimals: number = Number(
+      await this.web3Service.callContractMethod({
+        abi: decimalsAbiItem,
+        address: cToken,
+      }),
+    );
+
+    if (Number.isNaN(decimals)) throw new Error("Couldn't get decimals");
+
+    return decimals;
   }
 
   // async fetchMarketTotalCash(cToken: string, blockNumber?: number) {

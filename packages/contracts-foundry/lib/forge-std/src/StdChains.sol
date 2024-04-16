@@ -197,7 +197,7 @@ abstract contract StdChains {
         // If adding an RPC here, make sure to test the default RPC URL in `testRpcs`
         setChainWithDefaultRpcUrl("anvil", ChainData("Anvil", 31337, "http://127.0.0.1:8545"));
         setChainWithDefaultRpcUrl(
-            "mainnet", ChainData("Mainnet", 1, "https://mainnet.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001")
+            "mainnet", ChainData("Mainnet", 1, "https://eth-mainnet.alchemyapi.io/v2/pwc5rmJhrdoaSEfimoKEmsvOjKSmPDrP")
         );
         setChainWithDefaultRpcUrl(
             "goerli", ChainData("Goerli", 5, "https://goerli.infura.io/v3/b9794ad1ddf84dfb8c34d6bb5dca2001")
@@ -235,6 +235,8 @@ abstract contract StdChains {
         setChainWithDefaultRpcUrl("moonbase", ChainData("Moonbase", 1287, "https://rpc.testnet.moonbeam.network"));
         setChainWithDefaultRpcUrl("base_goerli", ChainData("Base Goerli", 84531, "https://goerli.base.org"));
         setChainWithDefaultRpcUrl("base", ChainData("Base", 8453, "https://mainnet.base.org"));
+        setChainWithDefaultRpcUrl("fraxtal", ChainData("Fraxtal", 252, "https://rpc.frax.com"));
+        setChainWithDefaultRpcUrl("fraxtal_testnet", ChainData("Fraxtal Testnet", 2522, "https://rpc.testnet.frax.com"));
     }
 
     // set chain info, with priority to chainAlias' rpc url in foundry.toml

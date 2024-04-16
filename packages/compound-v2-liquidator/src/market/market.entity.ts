@@ -13,6 +13,8 @@ export interface MarketEntity {
 
   underlyingPriceMantissa: bigint;
 
+  pendingUnderlyingPriceMantissa?: bigint;
+
   accounts: Set<string>;
 
   /////////////////
@@ -23,15 +25,17 @@ export interface MarketEntity {
 
   exchangeRateMantissa: bigint;
 
+  exchangeRateLastUpdateBlock: number;
+
   // interestRateModel: string;
 
-  totalSupply: bigint;
+  // totalSupply: bigint;
 
-  totalCash: bigint;
+  // totalCash: bigint;
 
-  totalBorrows: bigint;
+  // totalBorrows: bigint;
 
-  totalReserves: bigint;
+  // totalReserves: bigint;
 
   accrualBlockNumber: bigint;
 

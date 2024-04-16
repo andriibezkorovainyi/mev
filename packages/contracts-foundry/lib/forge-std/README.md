@@ -47,7 +47,7 @@ contract ErrorsTest {
 
 This is a rather large contract due to all of the overloading to make the UX decent. Primarily, it is a wrapper around the `record` and `accesses` cheatcodes. It can *always* find and write the storage slot(s) associated with a particular variable without knowing the storage layout. The one _major_ caveat to this is while a slot can be found for packed storage variables, we can't write to that variable safely. If a user tries to write to a packed slot, the execution throws an error, unless it is uninitialized (`bytes32(0)`).
 
-This works by recording all `SLOAD`s and `SSTORE`s during a function callContractMethod. If there is a single slot read or written to, it immediately returns the slot. Otherwise, behind the scenes, we iterate through and check each one (assuming the user passed in a `depth` parameter). If the variable is a struct, you can pass in a `depth` parameter which is basically the field depth.
+This works by recording all `SLOAD`s and `SSTORE`s during a function call. If there is a single slot read or written to, it immediately returns the slot. Otherwise, behind the scenes, we iterate through and check each one (assuming the user passed in a `depth` parameter). If the variable is a struct, you can pass in a `depth` parameter which is basically the field depth.
 
 I.e.:
 ```solidity
@@ -98,7 +98,7 @@ contract TestContract is Test {
         assertEq(slot, uint256(keccak256("my.random.var")));
     }
 
-    // If targeting a mapping, you have to pass in the StorageServiceKeys necessary to perform the find
+    // If targeting a mapping, you have to pass in the keys necessary to perform the find
     // i.e.:
     function testFindMapping() public {
         uint256 slot = stdstore
@@ -184,7 +184,7 @@ contract StdCheatsTest is Test {
     }
 
     function testHoax() public {
-        // we callContractMethod `hoax`, which gives the target address
+        // we call `hoax`, which gives the target address
         // eth and then calls `prank`
         hoax(address(1337));
         test.bar{value: 100}(address(1337));
@@ -196,7 +196,7 @@ contract StdCheatsTest is Test {
     }
 
     function testStartHoax() public {
-        // we callContractMethod `startHoax`, which gives the target address
+        // we call `startHoax`, which gives the target address
         // eth and then calls `startPrank`
         //
         // it is also overloaded so that you can specify an eth amount
@@ -217,7 +217,7 @@ contract Bar {
 
 ### Std Assertions
 
-Expand upon the assertion functions from the `DSTest` library.
+Contains various assertions.
 
 ### `console.log`
 

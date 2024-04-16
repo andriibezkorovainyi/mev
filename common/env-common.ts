@@ -1,17 +1,23 @@
-import { NetworkNameType, NetworkType } from './types/enums.ts';
+import { NetworkNameType, NetworkType, ProtocolType } from './types/enums.ts';
 
 export class EnvCommon {
-  public readonly NETWORK: NetworkType;
-  public readonly NETWORK_NAME: NetworkNameType;
-  public readonly HTTPS_RPC_URL: string;
-  public readonly WSS_RPC_URL: string;
+  public NETWORK: NetworkType;
+  public NETWORK_NAME: NetworkNameType;
+  public PROTOCOL: ProtocolType;
+  public HTTPS_RPC_URL: string;
+  public WSS_RPC_URL: string;
 
   constructor() {
     this.NETWORK = process.env.NETWORK as NetworkType;
     this.NETWORK_NAME = process.env.NETWORK_NAME as NetworkNameType;
     this.HTTPS_RPC_URL = process.env.HTTPS_RPC_URL as string;
     this.WSS_RPC_URL = process.env.WSS_RPC_URL as string;
+    this.PROTOCOL = process.env.PROTOCOL as ProtocolType;
 
+    this.validateCommon();
+  }
+
+  validateCommon() {
     if (!this.HTTPS_RPC_URL) {
       throw new Error('Wrong HTTPS_RPC_URL env variable');
     }
@@ -32,6 +38,13 @@ export class EnvCommon {
       !Object.values(NetworkNameType).some((v) => v === this.NETWORK_NAME)
     ) {
       throw new Error('Wrong NETWORK_NAME env variable');
+    }
+
+    if (
+      !this.PROTOCOL ||
+      !Object.values(ProtocolType).some((v) => v === this.PROTOCOL)
+    ) {
+      throw new Error('Wrong PROTOCOL env variable');
     }
   }
 }

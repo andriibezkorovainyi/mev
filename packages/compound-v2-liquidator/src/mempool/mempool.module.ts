@@ -6,27 +6,54 @@ import { PriceOracleModule } from '../price-oracle/price-oracle.module.ts';
 import { StorageModule } from '../storage/storage.module.ts';
 import { CacheModule } from '../cache/cache.module.ts';
 import { MessageService } from './message.service.ts';
+import type { StorageService } from '../storage/storage.service.ts';
+import type { Web3Service } from '../web3/web3.service.ts';
+import type { PriceOracleService } from '../price-oracle/price-oracle.service.ts';
+import { MarketModule } from '../market/market.module.ts';
+import { AccountModule } from '../account/account.module.ts';
+import { ValidatorProxyModule } from '../validator-proxy/validator-proxy.module.ts';
 
 export default class MempoolModule extends Module {
+  public readonly storageService: StorageService;
+  public readonly web3Service: Web3Service;
+  public readonly priceOracleService: PriceOracleService;
+  public readonly messageService: MessageService;
+
   constructor() {
     super();
     const web3Module = new Web3Module(Env.WSS_RPC_URL);
     const cacheModule = new CacheModule();
     const storageModule = new StorageModule(cacheModule);
-    const priceOracleModule = new PriceOracleModule(web3Module, storageModule);
+    const accountModule = new AccountModule(storageModule, web3Module);
+    const validatorProxyModule = new ValidatorProxyModule(
+      web3Module,
+      storageModule,
+    );
+    const marketModule = new MarketModule(
+      storageModule,
+      web3Module,
+      accountModule,
+    );
+    const priceOracleModule = new PriceOracleModule(
+      web3Module,
+      storageModule,
+      validatorProxyModule,
+      marketModule,
+    );
 
-    const storageService = storageModule.getService('storageService');
-    const web3Service = web3Module.getService('web3Service');
-    const priceOracleService =
+    this.storageService = storageModule.getService('storageService');
+    this.web3Service = web3Module.getService('web3Service');
+    this.priceOracleService =
       priceOracleModule.getService('priceOracleService');
-    const messageService = new MessageService();
 
     const mempoolService = new MempoolService(
-      storageService,
-      web3Service,
-      priceOracleService,
-      messageService,
+      this.storageService,
+      this.web3Service,
+      this.priceOracleService,
+      undefined,
     );
+
+    this.messageService = new MessageService(mempoolService);
 
     this.registerService('mempoolService', mempoolService);
   }

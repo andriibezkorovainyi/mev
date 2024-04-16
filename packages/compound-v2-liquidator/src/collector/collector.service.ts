@@ -3,8 +3,9 @@ import { Service } from '../../utils/classes/service.ts';
 import type { Web3Service } from '../web3/web3.service.ts';
 import type { ComptrollerService } from '../comptroller/comptroller.service.ts';
 import type { MarketService } from '../market/market.service.ts';
-import { BlockFilterBatch } from '../../utils/constants/settings.ts';
 import type { PriceOracleService } from '../price-oracle/price-oracle.service.ts';
+import type { ValidatorProxyService } from '../validator-proxy/validator-proxy.service.ts';
+import Env from '../../utils/constants/env.ts';
 
 export class CollectorService extends Service {
   constructor(
@@ -13,40 +14,57 @@ export class CollectorService extends Service {
     private readonly comptrollerService: ComptrollerService,
     private readonly marketService: MarketService,
     private readonly priceOracleService: PriceOracleService,
+    private readonly validatorProxyService: ValidatorProxyService,
   ) {
     super();
   }
 
-  async init() {
-    // await this.collectPastEvents();
-  }
+  // async init() {
+  // await this.collectPastEvents();
 
-  async collectPastEvents() {
+  // this.subscribeToNewBlocks().catch(async (error) => {
+  //   console.error(error);
+  //   console.log('Resubscribing to new blocks in 10 seconds...');
+  //   await delay(10_000);
+  //   this.init().catch(console.error);
+  // });
+  // }
+
+  // async subscribeToNewBlocks() {
+  //   console.debug('method -> subscribeToNewBlocks');
+  //   const isSubscribed = true;
+  //
+  //   while (isSubscribed) {
+  //     await this.collectPastEvents();
+  //     await delay(10_000);
+  //   }
+  // }
+
+  async collectPastEvents(shouldUpdateNetworkHeight = true) {
     console.debug('method -> collectPastEvents');
 
-    await this.updateNetworkHeight();
-
-    let count = 10;
+    if (shouldUpdateNetworkHeight) {
+      await this.updateNetworkHeight();
+    }
 
     while (!this.getStatusSync()) {
-      if (count === 0) {
-        break;
-      }
-
       const pointerHeight = this.storageService.getPointerHeight();
-      // console.log('pointerHeight', pointerHeight);
-      // const pointerHeight = UnitrollerDeploymentBlock;
       const networkHeight = this.storageService.getNetworkHeight();
 
-      const fromBlock = pointerHeight;
-      let toBlock = fromBlock + BlockFilterBatch;
+      const fromBlock = pointerHeight + 1;
+      if (fromBlock > networkHeight) {
+        throw new Error('Pointer height is greater than network height');
+      }
+      let toBlock = fromBlock + Env.BLOCK_FILTER_BATCH;
       if (toBlock > networkHeight) toBlock = networkHeight;
+
+      console.log('fromBlock', fromBlock);
+      console.log('toBlock', toBlock);
 
       const comptrollerLogs = await this.comptrollerService.collectLogs(
         fromBlock,
         toBlock,
       );
-
       if (comptrollerLogs.length > 0) {
         await this.comptrollerService.processLogs(comptrollerLogs);
       }
@@ -55,26 +73,42 @@ export class CollectorService extends Service {
         fromBlock,
         toBlock,
       );
-
       if (marketsLogs.length > 0) {
-        this.marketService.processLogs(marketsLogs);
+        await this.marketService.processLogs(marketsLogs);
       }
 
       const priceOracleLogs = await this.priceOracleService.collectLogs(
         fromBlock,
         toBlock,
       );
-
       if (priceOracleLogs.length > 0) {
         await this.priceOracleService.processLogs(priceOracleLogs);
       }
 
-      this.storageService.setPointerHeight(toBlock + 1);
-      await this.storageService.cacheMemory();
+      const validatorProxyLogs = await this.validatorProxyService.collectLogs(
+        fromBlock,
+        toBlock,
+      );
+      if (validatorProxyLogs.length > 0) {
+        this.validatorProxyService.processLogs(validatorProxyLogs);
+      }
 
-      await this.updateNetworkHeight();
+      this.storageService.setPointerHeight(toBlock);
 
-      count--;
+      if (
+        comptrollerLogs[0] ||
+        marketsLogs[0] ||
+        priceOracleLogs[0] ||
+        validatorProxyLogs[0]
+      ) {
+        await this.storageService.cacheMemory();
+      } else {
+        await this.storageService.cachePointerHeight();
+      }
+
+      if (shouldUpdateNetworkHeight) {
+        await this.updateNetworkHeight();
+      }
     }
 
     console.debug('Sync complete');
@@ -82,7 +116,7 @@ export class CollectorService extends Service {
 
   getStatusSync() {
     return (
-      this.storageService.getPointerHeight() ===
+      this.storageService.getPointerHeight() >=
       this.storageService.getNetworkHeight()
     );
   }
@@ -91,33 +125,4 @@ export class CollectorService extends Service {
     const networkHeight = await this.web3Service.getNetworkHeight();
     this.storageService.setNetworkHeight(networkHeight);
   }
-
-  // async collectUnitrollerEvents(fromBlock: number, toBlock: number) {
-  //   console.debug('method -> collectUnitrollerEvents');
-  //
-  //   const address = this.env.COMPTROLLER_PROXY_ADDRESS;
-  //   const eventNames = UnitrollerSearchEventNames;
-  //   const abi = filterAbi(Unitroller.abi, eventNames);
-  //
-  //   const logs = await this.web3Service.getFilteredLogs(
-  //     [address],
-  //     abi,
-  //     fromBlock,
-  //     toBlock,
-  //   );
-  //
-  //   const decodedLogs = this.web3Service.decodeLogs(logs, abi);
-  //
-  //   const implementations = decodedLogs.map(
-  //     (decodedLog) => decodedLog.newImplementation,
-  //   );
-  //
-  //   const last = implementations[implementations.length - 1];
-  //
-  //   if (last) {
-  //     this.storageService.setComptroller({ implementationAddress: last });
-  //   }
-  //
-  //   return implementations;
-  // }
 }

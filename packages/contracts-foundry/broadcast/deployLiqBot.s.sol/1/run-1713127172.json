@@ -1,0 +1,50 @@
+{
+  "transactions": [
+    {
+      "hash": "0xa6a4e8ed96525091cd1c2e0bd995444cee3d4ea6355e4324706b42bfc9981e0c",
+      "transactionType": "CALL",
+      "contractName": null,
+      "contractAddress": "0x1b57f4058863597071548a8b19Fb2bd2B2EC3b6e",
+      "function": "setvalidatorShare(uint256)",
+      "arguments": [
+        "5000"
+      ],
+      "transaction": {
+        "type": "0x02",
+        "from": "0x1662de05d43c3a6512e0a6fde48f074cd2384889",
+        "to": "0x1b57f4058863597071548a8b19fb2bd2b2ec3b6e",
+        "gas": "0x8b2f",
+        "value": "0x0",
+        "data": "0x7672a6260000000000000000000000000000000000000000000000000000000000001388",
+        "nonce": "0x5",
+        "accessList": []
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    }
+  ],
+  "receipts": [
+    {
+      "transactionHash": "0xa6a4e8ed96525091cd1c2e0bd995444cee3d4ea6355e4324706b42bfc9981e0c",
+      "transactionIndex": "0x9",
+      "blockHash": "0x54012ecc29113f810c6d896f2adaeb42f3f873621f9bfc83ed20e9aa479f8e9c",
+      "blockNumber": "0x12bee14",
+      "from": "0x1662De05D43C3a6512E0a6fDE48f074cd2384889",
+      "to": "0x1b57f4058863597071548a8b19Fb2bd2B2EC3b6e",
+      "cumulativeGasUsed": "0x166ebc",
+      "gasUsed": "0x64c5",
+      "contractAddress": null,
+      "logs": [],
+      "status": "0x1",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "type": "0x2",
+      "effectiveGasPrice": "0x335067426"
+    }
+  ],
+  "libraries": [],
+  "pending": [],
+  "returns": {},
+  "timestamp": 1713127172,
+  "chain": 1,
+  "commit": "3cca3f8"
+}

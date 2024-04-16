@@ -5,17 +5,15 @@ export function mulScalarTruncateAddUInt(
   scalar: bigint,
   addend: bigint,
 ) {
-  // // Выполнение операции умножения с учетом масштаба expScale
-  // const product = mantissa * scalar;
-  //
-  // // Округление результата умножения до целого числа с учетом масштаба
-  // const truncatedProduct = product / expScale;
   const truncatedProduct = mul_Mantissa(mantissa, scalar);
 
-  // Добавление округленного значения к целому числу
   const result = truncatedProduct + addend;
 
   return result;
+}
+
+export function truncate(value: bigint) {
+  return value / expScale;
 }
 
 export function mul_Mantissa(a: bigint, b: bigint) {
@@ -26,4 +24,8 @@ export function mul_Mantissa(a: bigint, b: bigint) {
 
 export function mul_Plain(a: bigint, b: bigint) {
   return a * b;
+}
+
+export function div_MantissaB(a: bigint, bMantissa: bigint) {
+  return (a * expScale) / bMantissa;
 }

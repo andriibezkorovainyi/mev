@@ -4,16 +4,12 @@
   "type": "module",
   "private": "true",
   "scripts": {
+    "build": "bun build --target bun --outfile main.js main.ts",
+    "prod": "pm2 start ecosystem.config.cjs --env production",
     "dev:master": "bun run --watch main.ts",
     "dev:mempool": "bun run workers/mempool.worker.ts --watch"
   },
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
-  },
-  "dependencies": {
-    "ioredis": "^5.3.2"
-  }
+  "devDependencies": {},
+  "peerDependencies": {},
+  "dependencies": {}
 }

@@ -1,146 +1,558 @@
 import { Service } from '../../utils/classes/service.ts';
-import type { TokenConfigEntity } from '../price-oracle/token-config.entity.ts';
 import type { StorageService } from '../storage/storage.service.ts';
 import type { PriceOracleService } from '../price-oracle/price-oracle.service.ts';
 import {
+  div_MantissaB,
   mul_Mantissa,
   mulScalarTruncateAddUInt,
 } from '../../utils/math/ExpNoError.ts';
 import type { AccountEntity } from '../account/account.entity.ts';
+import type { Web3Service } from '../web3/web3.service.ts';
+import type { AccountService } from '../account/account.service.ts';
+import LiqBot_v1 from '../../artifacts/LiqBot_v1.sol/LiqBot_v1.json';
+import { deepCopy } from '../../../../common/helpers/deepCopy.ts';
+import type { ILiquidationData } from '../../utils/interfaces/liquidation-data.interface.ts';
+import Env from '../../utils/constants/env.ts';
+import { findAsset } from '../../utils/helpers/array.helpers.ts';
+import type { PendingPriceUpdateMessage } from '../mempool/pending-price-update.message.ts';
+import type { BundleService } from '../bundle/bundle.service.ts';
+import { WETH_ADDRESS } from './liquidator.constants.ts';
+import type { TelegramService } from '../telegram/telegram.service.ts';
+import {
+  AllowedBorrowMarkets,
+  CSaiSymbolHash,
+  EthSymbolHash,
+} from '../mempool/mempool.constants.ts';
+import Path from '../../artifacts/network/Path.json';
 
 export class LiquidatorService extends Service {
+  private readonly txData = new Map<string, [string, ILiquidationData]>();
+
   constructor(
     private readonly storageService: StorageService,
     private readonly priceOracleService: PriceOracleService,
+    private readonly web3Service: Web3Service,
+    private readonly accountService: AccountService,
+    private readonly bundleService: BundleService,
+    private readonly telegramService: TelegramService,
   ) {
     super();
   }
 
-  async processPendingPriceUpdate(data: TokenConfigEntity) {
+  async processPendingPriceUpdate(message: PendingPriceUpdateMessage) {
     console.log('method -> liquidatorService.processPendingPriceUpdate');
+    const [pendingPriceConfig, rawTx] = message.data;
 
-    const market = this.storageService.getMarket(data.marketAddress);
-    market.underlyingPriceMantissa =
-      this.priceOracleService.getUnderlyingPrice(data);
+    this.txData.set(pendingPriceConfig.symbolHash, [
+      rawTx,
+      {
+        _repayTokens: [],
+        _cMarkets: [],
+        _borrowers: [],
+        _repayAmounts: [],
+        _cMarketCollaterals: [],
+        _path: [],
+      },
+    ]);
 
-    // подсчитать новый borrowIndex
+    const oldPrices = [];
+    const markets = [];
+    const tokenConfigs = this.storageService.getTokenConfigsBySymbolHash(
+      pendingPriceConfig.symbolHash,
+    );
 
-    const accounts = market.accounts.values();
-
-    const promises = [];
-
-    for (const account of accounts) {
-      promises.push(this.calculateAccountLiquidity(account));
+    if (pendingPriceConfig.symbolHash === EthSymbolHash) {
+      const fixedEthTokenConfigs =
+        this.storageService.getFixedEthTokenConfigs();
+      tokenConfigs.push(...fixedEthTokenConfigs);
     }
 
-    await Promise.all(promises);
+    for (const tokenConfig of tokenConfigs) {
+      oldPrices.push(tokenConfig.price);
+      if (tokenConfig.symbolHash === pendingPriceConfig.symbolHash) {
+        tokenConfig.price = pendingPriceConfig.price;
+      }
+      const newPendingUnderlyingPriceMantissa =
+        this.priceOracleService.getUnderlyingPrice(tokenConfig);
+
+      const market = this.storageService.getMarket(tokenConfig.marketAddress);
+      market.pendingUnderlyingPriceMantissa = newPendingUnderlyingPriceMantissa;
+
+      console.log('pendingPriceConfig', pendingPriceConfig);
+      console.log('market', market.symbol, market.address);
+      console.log(
+        'newPendingUnderlyingPriceMantissa',
+        newPendingUnderlyingPriceMantissa,
+      );
+
+      // console.log('market', market.symbol);
+      // console.log('old price', market.underlyingPriceMantissa);
+      // market.underlyingPriceMantissa = pendingPriceConfig.price;
+      // console.log('new price', market.underlyingPriceMantissa);
+      markets.push(market);
+    }
+
+    if (!markets.length) {
+      console.error('No markets found');
+    }
+
+    // if (pendingPriceConfig.symbolHash === EthSymbolHash) {
+    //   console.log('pending ETH price update');
+    //   const fixedEthTokenConfigs =
+    //     this.storageService.getFixedEthTokenConfigs();
+    //   const fixedEthMarkets = fixedEthTokenConfigs.map((tokenConfig) =>
+    //     this.storageService.getMarket(tokenConfig.marketAddress),
+    //   );
+    //   console.log(
+    //     'fixedEthMarkets',
+    //     fixedEthMarkets.map(({ symbol }) => symbol),
+    //   );
+    //
+    //   for (let i = 0; i < fixedEthMarkets.length; i++) {
+    //     const market = fixedEthMarkets[i];
+    //     const tokenConfig = fixedEthTokenConfigs[i];
+    //     // oldPrices.push(market.underlyingPriceMantissa);
+    //     // const { price: usdPerEth, baseUnit: ethBaseUnit } = tokenConfigs[0];
+    //     // const price = mulDiv(usdPerEth!, tokenConfig.fixedPrice, ethBaseUnit);
+    //     market.pendingUnderlyingPriceMantissa =
+    //       this.priceOracleService.getUnderlyingPrice(tokenConfig);
+    //     markets.push(market);
+    //     tokenConfigs.push(tokenConfig);
+    //   }
+    // }
+
+    const accounts = Array.from(
+      markets.reduce((acc, market) => {
+        market.accounts.forEach((address) => acc.add(address));
+        return acc;
+      }, new Set<string>()),
+    );
+
+    const start = Date.now();
+
+    await Promise.all(
+      accounts.map((account) =>
+        this.findLiquidationData(account, pendingPriceConfig.symbolHash),
+      ),
+    );
+
+    for (const tokenConfig of tokenConfigs) {
+      // Reset prices to avoid affecting other calculations
+      const market = this.storageService.getMarket(tokenConfig.marketAddress);
+      market.pendingUnderlyingPriceMantissa = 0n;
+      tokenConfig.price = oldPrices.shift()!;
+    }
+
+    console.log(
+      'markets',
+      markets.map(({ symbol }) => symbol),
+    );
+    console.log('Account quantity:', accounts.length);
+    console.log('Time of liquidity calculations:', Date.now() - start, 'ms');
+
+    const [rawTargetTx, liquidationData] = this.txData.get(
+      pendingPriceConfig.symbolHash,
+    )!;
+
+    console.log('total victims:', liquidationData._repayTokens.length);
+    console.log('_repayToken', liquidationData._repayTokens);
+    console.log('_cMarket', liquidationData._cMarkets);
+    console.log('_borrower', liquidationData._borrowers);
+    console.log('_repayAmount', liquidationData._repayAmounts);
+    console.log('_cMarketCollateral', liquidationData._cMarketCollaterals);
+    console.log('_path', liquidationData._path);
+
+    if (liquidationData._repayTokens.length === 0) {
+      this.txData.delete(pendingPriceConfig.symbolHash);
+      return;
+    }
+
+    let tx;
+    try {
+      const tx = await this.createLiquidationTx(liquidationData);
+    } catch (e) {
+      this.sendLiquidationErrorToTelegram(e as Error);
+      this.txData.delete(pendingPriceConfig.symbolHash);
+      return;
+    }
+
+    if (!tx) {
+      this.txData.delete(pendingPriceConfig.symbolHash);
+      return;
+    }
+
+    const blockNumber = this.storageService.getNetworkHeight() + 1;
+
+    const reportAnalytic = (bundleHash: string) => {
+      const infoParts = [
+        `bundleHash: ${bundleHash}`,
+        `blockNumber: ${blockNumber}`,
+        `txHash: ${tx?.transactionHash || null}`,
+      ];
+
+      this.sendLiquidationDataToTelegram(infoParts);
+    };
+
+    // @ts-ignore
+    this.bundleService
+      .submitBundleBLXR(blockNumber, [rawTargetTx, tx.rawTransaction])
+      .then(reportAnalytic)
+      .catch(this.sendLiquidationErrorToTelegram);
+
+    this.txData.delete(pendingPriceConfig.symbolHash);
   }
 
-  async calculateAccountLiquidity(_address: string) {
-    console.debug('method -> liquidatorService.calculateAccountLiquidity');
+  async sendLiquidationDataToTelegram(args: any[]) {
+    const bundlePrefix = 'Liquidation info:';
+    args.unshift(bundlePrefix);
+    const message = args.join('\n');
 
-    const account = this.storageService.getAccount(_address)!;
+    await this.telegramService.sendMessage(message);
+  }
+
+  async sendLiquidationErrorToTelegram(error: Error) {
+    const errorMessage = error.message;
+    const message = `Liquidation error:\n${errorMessage}`;
+
+    await this.telegramService.sendMessage(message);
+  }
+
+  async findLiquidationData(address: string, symbolHash: string) {
+    const account = this.storageService.getAccount(address)!;
+
+    const [liquidity, shortfall] = this.calculateAccountLiquidity(account);
+
+    if (liquidity > 0n || shortfall === 0n) {
+      return;
+    }
+
+    // console.log('account', account.address);
+
+    // console.log('liquidity', liquidity);
+    // console.log('shortfall', shortfall);
+
+    this.appendAccountLiqData(account, liquidity, symbolHash);
+  }
+
+  async createLiquidationTx(liquidationLoopData: ILiquidationData) {
+    console.log('method -> liquidatorService.createLiquidationTx');
+
+    const address = Env.LIQUIDATOR_CONTRACT_ADDRESS;
+    const abi = LiqBot_v1.abi.find((item) => item.name === 'liquidate');
+    const args: string[][] = Object.values(liquidationLoopData);
+    const maxFeePerGas = this.storageService.getBaseFeePerGas() * 2n;
+    const gas = (args[0].length * 1_500_000).toString();
+
+    // console.log('liquidationLoopData', liquidationLoopData);
+
+    const tx = await this.web3Service.createAndSignTx({
+      address,
+      abi,
+      args,
+      gas,
+      maxFeePerGas,
+    });
+
+    return tx;
+  }
+
+  appendAccountLiqData(
+    _account: AccountEntity,
+    initialLiquidity: bigint,
+    symbolHash: string,
+  ) {
+    // console.log('method -> liquidatorService.searchLiquidationLoop');
+    const account = deepCopy(_account);
+
+    let liquidity = initialLiquidity;
+
+    const { liquidationIncentiveMantissa } =
+      this.storageService.getComptroller();
+
+    while (liquidity === 0n) {
+      const collateral = this.findCollateralToLiquidate(account);
+
+      if (
+        Math.round(Number(collateral.collateralValue) / 1e18) <=
+        (Env.MINIMUM_LIQUIDATION_VALUE / 2) *
+          (Number(liquidationIncentiveMantissa) / 1e18)
+      ) {
+        break;
+      }
+
+      const borrow = this.findBorrowToLiquidate(account);
+
+      if (
+        Math.round(Number(borrow.borrowValue) / 1e18) <
+        Env.MINIMUM_LIQUIDATION_VALUE
+      ) {
+        break;
+      }
+
+      const repayAmount = this.calculateRepayAmount(borrow, collateral);
+
+      if (repayAmount <= 0n) {
+        break;
+      }
+
+      const borrowMarket = this.storageService.getMarket(borrow.address);
+      const collateralMarket = this.storageService.getMarket(
+        collateral.address,
+      );
+
+      const data = this.txData.get(symbolHash)![1];
+
+      const path = this.getPath(
+        borrowMarket.underlyingSymbol,
+        collateralMarket.underlyingSymbol,
+      );
+
+      if (!path) {
+        console.error(
+          `Path not found for borrow market ${borrowMarket.underlyingSymbol} and collateral market ${collateralMarket.underlyingSymbol}`,
+        );
+        account.tokens[collateral.address] = 0n; // We mark this collateral as zero to avoid infinite loop and search for another one
+        console.log('borrower', account.address);
+        continue;
+      }
+
+      data._path.push(path);
+      data._cMarkets.push(borrow.address);
+      data._borrowers.push(account.address);
+      data._repayAmounts.push(repayAmount.toString());
+      data._cMarketCollaterals.push(collateral.address);
+      data._repayTokens.push(
+        borrowMarket.symbol === 'cETH'
+          ? WETH_ADDRESS
+          : borrowMarket.underlyingAddress,
+      );
+
+      const seizeTokens = this.calculateSeizeTokens(
+        borrow.address,
+        collateral.address,
+        repayAmount,
+      );
+
+      account.tokens[collateral.address] -= seizeTokens;
+      findAsset(account, borrow.address).principal -= repayAmount;
+
+      liquidity = this.calculateAccountLiquidity(account)[0];
+    }
+  }
+
+  calculateAccountLiquidity(account: AccountEntity) {
+    // console.debug('method -> liquidatorService.calculateAccountLiquidity');
 
     const { assets, tokens } = account;
-
+    // console.log('assets', assets);
+    // console.log('tokens', Object.keys(tokens));
     let sumCollateral = 0n;
     let sumBorrow = 0n;
 
     for (const asset of assets) {
-      const { address, principal, interestIndex } = asset;
+      const { address, principal } = asset;
+      const balance = tokens[address];
+
       const {
         borrowIndex,
         exchangeRateMantissa,
         collateralFactorMantissa,
-        underlyingPriceMantissa,
+        underlyingPriceMantissa: _underlyingPriceMantissa,
+        pendingUnderlyingPriceMantissa,
       } = this.storageService.getMarket(address);
 
-      const balance = tokens[address];
-      const borrowBalance = this.borrowBalance(
-        principal,
-        interestIndex,
-        borrowIndex,
-      );
+      const underlyingPriceMantissa =
+        pendingUnderlyingPriceMantissa || _underlyingPriceMantissa;
 
-      // console.log('borrowBalance', borrowBalance);
-      // console.log('balance', balance);
-      // console.log('underlyingPriceMantissa', underlyingPriceMantissa);
-      // console.log('exchangeRateMantissa', exchangeRateMantissa);
-      // console.log('collateralFactorMantissa', collateralFactorMantissa);
-      // console.log('borrowIndex', borrowIndex);
+      if (balance > 0n) {
+        const tokensToDenomMantissa = mul_Mantissa(
+          mul_Mantissa(collateralFactorMantissa, exchangeRateMantissa),
+          underlyingPriceMantissa,
+        );
 
-      const tokensToDenomMantissa = mul_Mantissa(
-        mul_Mantissa(collateralFactorMantissa, exchangeRateMantissa),
-        underlyingPriceMantissa,
-      );
+        sumCollateral = mulScalarTruncateAddUInt(
+          tokensToDenomMantissa,
+          balance,
+          sumCollateral,
+        );
+      }
 
-      sumCollateral = mulScalarTruncateAddUInt(
-        tokensToDenomMantissa,
-        balance,
-        sumCollateral,
-      );
-      sumBorrow = mulScalarTruncateAddUInt(
-        underlyingPriceMantissa,
-        borrowBalance,
-        sumBorrow,
-      );
+      if (principal > 0n) {
+        const borrowBalance = this.accountService.borrowBalance(
+          asset,
+          borrowIndex,
+        );
+
+        sumBorrow = mulScalarTruncateAddUInt(
+          underlyingPriceMantissa,
+          borrowBalance,
+          sumBorrow,
+        );
+      }
     }
 
-    // return [sumCollateral, sumBorrow] as const;
-
-    if (sumBorrow >= sumCollateral) {
-      this.liquidate(account).catch(console.error);
-    }
-  }
-
-  borrowBalance(principal: bigint, interestIndex: bigint, borrowIndex: bigint) {
-    if (principal === 0n) {
-      return 0n;
-    }
-
-    return (principal * borrowIndex) / interestIndex;
-  }
-
-  async liquidate(account: AccountEntity) {
-    console.log('method -> liquidatorService.liquidate');
-    const collateral = this.findCollateralToLiquidate(account);
-    const borrowAsset = this.findBorrowToLiquidate(account);
+    return sumCollateral > sumBorrow
+      ? [sumCollateral - sumBorrow, 0n]
+      : [0n, sumBorrow - sumCollateral];
   }
 
   findBorrowToLiquidate(account: AccountEntity) {
-    console.log('method -> liquidatorService.findBorrowToLiquidate');
+    // console.log('method -> liquidatorService.findBorrowToLiquidate');
     const assets = account.assets;
 
+    let address = '';
+    let borrowValue = 0n;
+
     for (const asset of assets) {
-      const { principal, interestIndex, address } = asset;
-      const { borrowIndex, exchangeRateMantissa, underlyingPriceMantissa } =
-        this.storageService.getMarket(address);
+      const { principal, address: _address } = asset;
+
+      const {
+        borrowIndex,
+        underlyingPriceMantissa: _underlyingPriceMantissa,
+        pendingUnderlyingPriceMantissa,
+      } = this.storageService.getMarket(_address);
+      const underlyingPriceMantissa =
+        pendingUnderlyingPriceMantissa || _underlyingPriceMantissa;
+
+      if (!AllowedBorrowMarkets.includes(_address) || principal === 0n) {
+        continue;
+      }
+
+      const borrowBalance = this.accountService.borrowBalance(
+        asset,
+        borrowIndex,
+      );
+
+      const _borrowValue = mul_Mantissa(underlyingPriceMantissa, borrowBalance);
+
+      if (_borrowValue > borrowValue) {
+        address = _address;
+        borrowValue = _borrowValue;
+      }
     }
+
+    return {
+      address,
+      borrowValue,
+    };
   }
 
   findCollateralToLiquidate(account: AccountEntity) {
-    console.log('method -> liquidatorService.findCollateralToLiquidate');
+    // console.log('method -> liquidatorService.findCollateralToLiquidate');
 
+    // console.log('account', account);
     const tokens = Object.entries(account.tokens);
 
-    const tokenAmounts: [string, bigint][] = [];
+    let address = '';
+    let collateralValue = 0n;
 
-    for (const [address, balance] of tokens) {
+    for (const [_address, balance] of tokens) {
       if (balance === 0n) {
         continue;
       }
 
-      const { exchangeRateMantissa, underlyingPriceMantissa } =
-        this.storageService.getMarket(address);
+      if (_address === CSaiSymbolHash) {
+        continue;
+      }
+
+      const {
+        exchangeRateMantissa,
+        underlyingPriceMantissa: _underlyingPriceMantissa,
+        pendingUnderlyingPriceMantissa,
+      } = this.storageService.getMarket(_address);
+
+      const underlyingPriceMantissa =
+        pendingUnderlyingPriceMantissa || _underlyingPriceMantissa;
+
+      // const { liquidationIncentiveMantissa } =
+      //   this.storageService.getComptroller();
 
       const ratio = mul_Mantissa(underlyingPriceMantissa, exchangeRateMantissa);
-      const tokenAmount = mul_Mantissa(ratio, balance);
 
-      tokenAmounts.push([address, tokenAmount]);
+      const tokenValue = mul_Mantissa(ratio, balance);
+
+      // const tokenValue = div_MantissaB(
+      //   mul_Mantissa(ratio, balance),
+      //   liquidationIncentiveMantissa!,
+      // );
+
+      if (tokenValue > collateralValue) {
+        address = _address;
+        collateralValue = tokenValue;
+      }
     }
 
-    tokenAmounts.sort((a, b) => Number(b[1]) - Number(a[1]));
+    return {
+      address,
+      collateralValue,
+    };
+  }
 
-    return account.tokens[tokenAmounts[0][0]];
+  calculateRepayAmount(
+    borrowAsset: { address: string; borrowValue: bigint },
+    collateral: { address: string; collateralValue: bigint },
+  ) {
+    // console.log('method -> liquidatorService.calculateRepayAmount');
+    const { closeFactorMantissa } = this.storageService.getComptroller();
+    const borrowMarket = this.storageService.getMarket(borrowAsset.address);
+    const priceBorrowedMantissa =
+      borrowMarket.pendingUnderlyingPriceMantissa ||
+      borrowMarket.underlyingPriceMantissa;
+
+    const { collateralValue } = collateral;
+    // console.log('collateralValue', collateralValue);
+    const { borrowValue } = borrowAsset;
+
+    const maxRepayValue = mul_Mantissa(borrowValue, closeFactorMantissa);
+
+    const repayValue =
+      collateralValue <= maxRepayValue ? collateralValue : maxRepayValue;
+
+    const repayAmount = div_MantissaB(repayValue, priceBorrowedMantissa);
+    return repayAmount - 1000n; // Take 1000 wei less to avoid rounding errors
+  }
+
+  calculateSeizeTokens(
+    cTokenBorrowed: string,
+    cTokenCollateral: string,
+    actualRepayAmount: bigint,
+  ) {
+    const borrowMarket = this.storageService.getMarket(cTokenBorrowed);
+    const collateralMarket = this.storageService.getMarket(cTokenCollateral);
+
+    const priceBorrowedMantissa =
+      borrowMarket.pendingUnderlyingPriceMantissa ||
+      borrowMarket.underlyingPriceMantissa;
+
+    const priceCollateralMantissa =
+      collateralMarket.pendingUnderlyingPriceMantissa ||
+      collateralMarket.underlyingPriceMantissa;
+
+    const liquidationIncentiveMantissa =
+      this.storageService.getComptroller().liquidationIncentiveMantissa!;
+
+    const exchangeRateCollateralMantissa =
+      collateralMarket.exchangeRateMantissa;
+
+    const numerator = mul_Mantissa(
+      liquidationIncentiveMantissa,
+      priceBorrowedMantissa,
+    );
+
+    const denominator = mul_Mantissa(
+      priceCollateralMantissa,
+      exchangeRateCollateralMantissa,
+    );
+
+    const ratio = div_MantissaB(numerator, denominator);
+
+    const seizeTokens = mul_Mantissa(ratio, actualRepayAmount);
+
+    return seizeTokens;
+  }
+
+  getPath(borrowSymbol: string, collateralSymbol: string) {
+    const key = `${borrowSymbol}-${collateralSymbol}` as keyof typeof Path;
+    return Path[key];
   }
 }

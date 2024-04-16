@@ -5,14 +5,10 @@ async function mempoolWorker() {
 
   try {
     mempoolModule = new MempoolModule();
+    mempoolModule.messageService.init();
   } catch (error) {
     console.error('mempoolWorker -> error', error);
   }
-
-  await mempoolModule?.getService('mempoolService').init();
-
-  // await new Promise((res) => setTimeout(res, 10000));
-  console.log('mempoolWorker -> stop');
 }
 
 mempoolWorker();

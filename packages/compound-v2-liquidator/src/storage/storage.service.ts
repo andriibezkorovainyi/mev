@@ -3,13 +3,17 @@ import { Service } from '../../utils/classes/service.ts';
 import type { ComptrollerEntity } from '../comptroller/comptroller.entity.ts';
 import type { MarketEntity } from '../market/market.entity.ts';
 import type { AccountEntity } from '../account/account.entity.ts';
-import { UnitrollerDeploymentBlock } from '../../utils/constants/settings.ts';
 import type { TokenConfigEntity } from '../price-oracle/token-config.entity.ts';
+import { PriceSource } from '../price-oracle/price-oracle.constants.ts';
+import Env from '../../utils/constants/env.ts';
+import { EthSymbolHash } from '../mempool/mempool.constants.ts';
 
 export class StorageService extends Service {
   private pointerHeight = 0;
 
   private networkHeight = 0;
+
+  private baseFeePerGas = 0n;
 
   private comptroller = {} as ComptrollerEntity;
 
@@ -24,35 +28,42 @@ export class StorageService extends Service {
   }
 
   async init() {
-    this.pointerHeight =
-      (await this.cacheService.get('pointerHeight')) ||
-      UnitrollerDeploymentBlock;
+    await this.initPointerHeight();
 
+    await this.initComptroller();
+
+    await this.initAccounts();
+
+    await this.initMarkets();
+
+    await this.initTokenConfigs();
+  }
+
+  async initAccounts() {
+    this.accounts = new Map(await this.cacheService.get('accounts'));
+  }
+
+  async initMarkets() {
+    this.markets = (await this.cacheService.get('markets')) || {};
+  }
+
+  async initTokenConfigs() {
+    this.tokenConfigs = (await this.cacheService.get('tokenConfigs')) || {};
+  }
+
+  async initComptroller() {
     this.comptroller = (await this.cacheService.get('comptroller')) || {
       allMarkets: new Set([]),
       closeFactorMantissa: 0n,
       priceOracle: '',
+      liquidationIncentiveMantissa: 0n,
     };
-
-    this.markets = (await this.cacheService.get('markets')) || {};
-
-    this.accounts = new Map(await this.cacheService.get('accounts'));
-
-    this.tokenConfigs = (await this.cacheService.get('tokenConfigs')) || {};
   }
 
-  async initTokenConfigs() {
-    const tokenConfigs = await this.cacheService.get('tokenConfigs');
-    if (tokenConfigs) {
-      this.tokenConfigs = tokenConfigs;
-    }
-  }
-
-  async initComptroller() {
-    const comptroller = await this.cacheService.get('comptroller');
-    if (comptroller) {
-      this.comptroller = comptroller;
-    }
+  async initPointerHeight() {
+    this.pointerHeight =
+      (await this.cacheService.get('pointerHeight')) ||
+      Env.UNITROLLER_DEPLOYMENT_BLOCK;
   }
 
   // getAll() {
@@ -64,9 +75,37 @@ export class StorageService extends Service {
   //     accounts: this.accounts,
   //   };
   // }
-  getTokenConfigBySymbolHash(symbolHash: string) {
+  getEthTokenConfig() {
     return Object.values(this.tokenConfigs).find(
+      (tC) => tC.symbolHash === EthSymbolHash,
+    );
+  }
+
+  getFixedEthTokenConfigs() {
+    return Object.values(this.tokenConfigs).filter(
+      (tC) => tC.priceSource === PriceSource.FIXED_ETH,
+    );
+  }
+
+  getTokenConfigsBySymbolHash(symbolHash: string) {
+    return Object.values(this.tokenConfigs).filter(
       (tC) => tC.symbolHash === symbolHash,
+    );
+  }
+
+  getTokenConfigByCToken(cToken: string) {
+    return this.tokenConfigs[cToken];
+  }
+
+  getTokenConfigsByPriceSource(priceSource: PriceSource) {
+    return Object.values(this.tokenConfigs).filter(
+      (tC) => tC.priceSource === priceSource,
+    );
+  }
+
+  getTokenConfigByReporter(reporter: string) {
+    return Object.values(this.tokenConfigs).find(
+      (tC) => tC.reporter === reporter,
     );
   }
 
@@ -91,11 +130,21 @@ export class StorageService extends Service {
   }
 
   async cacheMemory() {
-    await this.cacheService.set('pointerHeight', this.pointerHeight);
-    await this.cacheService.set('comptroller', this.comptroller);
-    await this.cacheService.set('markets', this.markets);
-    await this.cacheService.set('accounts', this.accounts);
+    await this.cacheService.setEntries([
+      ['pointerHeight', this.pointerHeight],
+      ['comptroller', this.comptroller],
+      ['markets', this.markets],
+      ['accounts', this.accounts],
+      ['tokenConfigs', this.tokenConfigs],
+    ]);
+  }
+
+  async cacheTokenConfigs() {
     await this.cacheService.set('tokenConfigs', this.tokenConfigs);
+  }
+
+  async cachePointerHeight() {
+    await this.cacheService.set('pointerHeight', this.pointerHeight);
   }
 
   getMarket(address: string) {
@@ -126,11 +175,17 @@ export class StorageService extends Service {
     return this.markets;
   }
 
+  getMarketsBySymbolHash(symbolHash: string) {
+    return this.getTokenConfigsBySymbolHash(symbolHash).map(
+      ({ marketAddress }) => this.getMarket(marketAddress),
+    );
+  }
+
   getAccounts() {
     return this.accounts;
   }
 
-  setNetworkHeight(value: number) {
+  setNetworkHeight(value: number | string) {
     const networkHeight = Number(value);
     if (Number.isNaN(networkHeight)) {
       throw new Error(`Invalid value for networkHeight - ${value}`);
@@ -152,5 +207,13 @@ export class StorageService extends Service {
 
   setAccount(address: string, account: AccountEntity) {
     this.accounts.set(address, account);
+  }
+
+  getBaseFeePerGas() {
+    return this.baseFeePerGas;
+  }
+
+  setBaseFeePerGas(value: number | string) {
+    this.baseFeePerGas = BigInt(value);
   }
 }
