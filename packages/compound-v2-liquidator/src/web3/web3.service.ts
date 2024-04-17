@@ -1,6 +1,10 @@
 import { addRetries } from '../../../../common/helpers/addRetries.ts';
 import { Service } from '../../utils/classes/service.ts';
-import type { EthExecutionAPI, Web3BaseProvider } from 'web3';
+import type {
+  EthExecutionAPI,
+  TransactionInfoAPI,
+  Web3BaseProvider,
+} from 'web3';
 import { Web3 } from 'web3';
 import Env from '../../utils/constants/env.ts';
 
@@ -28,7 +32,7 @@ export class Web3Service extends Service {
 
   async init() {}
 
-  async getTransaction(txHash: string) {
+  async getTransaction(txHash: string): Promise<TransactionInfoAPI> {
     console.debug('method -> web3Service.getTransaction');
 
     const method = this.web3.eth.getTransaction.bind(this.web3.eth);
@@ -36,6 +40,10 @@ export class Web3Service extends Service {
     const transaction = await addRetries(method, txHash);
 
     return transaction;
+  }
+
+  async getTrasactionByBlockAndIndex(blockNumber: number, txIndex: number) {
+    return this.web3.eth.getTransactionFromBlock(blockNumber, txIndex);
   }
 
   async callContractMethod({

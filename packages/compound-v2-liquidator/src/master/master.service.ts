@@ -27,6 +27,7 @@ export class MasterService extends Service {
       .catch(this.cleanUpAndExit.bind(this));
 
     Env.SHOULD_FETCH_EXCHANGE_RATES = true;
+    Env.SHOULD_EMIT_LIQUIDATION_EVENTS = true;
 
     this.blockService.listenForNewBlocks();
 

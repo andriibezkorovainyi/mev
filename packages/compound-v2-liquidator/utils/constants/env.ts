@@ -29,6 +29,8 @@ class Env extends EnvCommon {
 
   public readonly MINIMUM_LIQUIDATION_VALUE: number;
 
+  public SHOULD_EMIT_LIQUIDATION_EVENTS: boolean;
+
   public readonly TG_BOT_TOKEN: string;
   public readonly CHAT_ID: string;
 
@@ -77,6 +79,9 @@ class Env extends EnvCommon {
     this.TG_BOT_TOKEN = process.env.TG_BOT_TOKEN as string;
 
     this.CHAT_ID = process.env.CHAT_ID as string;
+
+    this.SHOULD_EMIT_LIQUIDATION_EVENTS =
+      (process.env.SHOULD_EMIT_LIQUIDATION_EVENTS as string) === 'true';
 
     this.validate();
   }

@@ -18,6 +18,7 @@ import type { PendingPriceUpdateMessage } from '../mempool/pending-price-update.
 import type { BundleService } from '../bundle/bundle.service.ts';
 import { WETH_ADDRESS } from './liquidator.constants.ts';
 import type { TelegramService } from '../telegram/telegram.service.ts';
+import type { SignTransactionResult } from 'web3-eth-accounts';
 import {
   AllowedBorrowMarkets,
   CSaiSymbolHash,
@@ -85,41 +86,12 @@ export class LiquidatorService extends Service {
         newPendingUnderlyingPriceMantissa,
       );
 
-      // console.log('market', market.symbol);
-      // console.log('old price', market.underlyingPriceMantissa);
-      // market.underlyingPriceMantissa = pendingPriceConfig.price;
-      // console.log('new price', market.underlyingPriceMantissa);
       markets.push(market);
     }
 
     if (!markets.length) {
       console.error('No markets found');
     }
-
-    // if (pendingPriceConfig.symbolHash === EthSymbolHash) {
-    //   console.log('pending ETH price update');
-    //   const fixedEthTokenConfigs =
-    //     this.storageService.getFixedEthTokenConfigs();
-    //   const fixedEthMarkets = fixedEthTokenConfigs.map((tokenConfig) =>
-    //     this.storageService.getMarket(tokenConfig.marketAddress),
-    //   );
-    //   console.log(
-    //     'fixedEthMarkets',
-    //     fixedEthMarkets.map(({ symbol }) => symbol),
-    //   );
-    //
-    //   for (let i = 0; i < fixedEthMarkets.length; i++) {
-    //     const market = fixedEthMarkets[i];
-    //     const tokenConfig = fixedEthTokenConfigs[i];
-    //     // oldPrices.push(market.underlyingPriceMantissa);
-    //     // const { price: usdPerEth, baseUnit: ethBaseUnit } = tokenConfigs[0];
-    //     // const price = mulDiv(usdPerEth!, tokenConfig.fixedPrice, ethBaseUnit);
-    //     market.pendingUnderlyingPriceMantissa =
-    //       this.priceOracleService.getUnderlyingPrice(tokenConfig);
-    //     markets.push(market);
-    //     tokenConfigs.push(tokenConfig);
-    //   }
-    // }
 
     const accounts = Array.from(
       markets.reduce((acc, market) => {
@@ -128,7 +100,7 @@ export class LiquidatorService extends Service {
       }, new Set<string>()),
     );
 
-    const start = Date.now();
+    // const start = Date.now();
 
     await Promise.all(
       accounts.map((account) =>
@@ -148,7 +120,7 @@ export class LiquidatorService extends Service {
       markets.map(({ symbol }) => symbol),
     );
     console.log('Account quantity:', accounts.length);
-    console.log('Time of liquidity calculations:', Date.now() - start, 'ms');
+    // console.log('Time of liquidity calculations:', Date.now() - start, 'ms');
 
     const [rawTargetTx, liquidationData] = this.txData.get(
       pendingPriceConfig.symbolHash,
@@ -167,9 +139,9 @@ export class LiquidatorService extends Service {
       return;
     }
 
-    let tx;
+    let tx: SignTransactionResult;
     try {
-      const tx = await this.createLiquidationTx(liquidationData);
+      tx = await this.createLiquidationTx(liquidationData);
     } catch (e) {
       this.sendLiquidationErrorToTelegram(e as Error);
       this.txData.delete(pendingPriceConfig.symbolHash);
@@ -183,14 +155,29 @@ export class LiquidatorService extends Service {
 
     const blockNumber = this.storageService.getNetworkHeight() + 1;
 
-    const reportAnalytic = (bundleHash: string) => {
+    const reportAnalytic = async (bundleHash: string) => {
+      if (!bundleHash) {
+        await this.sendLiquidationErrorToTelegram(
+          new Error('Bundle was not created'),
+        );
+        return;
+      }
+
+      const bundleTrace =
+        (await this.bundleService.traceBundle(bundleHash)) ||
+        'No trace, most likely exceeded request limit';
+      const { blockNumber } = await this.web3Service.getTransaction(
+        tx.rawTransaction,
+      );
+
       const infoParts = [
-        `bundleHash: ${bundleHash}`,
-        `blockNumber: ${blockNumber}`,
-        `txHash: ${tx?.transactionHash || null}`,
+        `Status: ${blockNumber ? 'success' : 'failed'}`,
+        `TxHash: ${tx?.transactionHash || null}`,
+        `BundleHash: ${bundleHash}`,
+        `Trace: ${JSON.stringify(bundleTrace)}`,
       ];
 
-      this.sendLiquidationDataToTelegram(infoParts);
+      await this.sendLiquidationDataToTelegram(infoParts);
     };
 
     // @ts-ignore
@@ -203,7 +190,7 @@ export class LiquidatorService extends Service {
   }
 
   async sendLiquidationDataToTelegram(args: any[]) {
-    const bundlePrefix = 'Liquidation info:';
+    const bundlePrefix = 'Executed liquidation info:';
     args.unshift(bundlePrefix);
     const message = args.join('\n');
 
@@ -211,6 +198,7 @@ export class LiquidatorService extends Service {
   }
 
   async sendLiquidationErrorToTelegram(error: Error) {
+    console.error(error);
     const errorMessage = error.message;
     const message = `Liquidation error:\n${errorMessage}`;
 
