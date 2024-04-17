@@ -391,8 +391,7 @@ export class PriceOracleService extends Service {
     console.debug('method -> priceOracleService.fetchUnderlyingPrice');
 
     if (
-      blockNumber &&
-      Env.NORMAL_PRICE_ORACLE_START_BLOCK > blockNumber &&
+      (blockNumber && Env.NORMAL_PRICE_ORACLE_START_BLOCK > blockNumber) ||
       !Env.SHOULD_FETCH_UNDERLYING_PRICE
     ) {
       return BigInt(0);
