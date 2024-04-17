@@ -12,6 +12,7 @@ import type { PriceOracleService } from '../price-oracle/price-oracle.service.ts
 import { MarketModule } from '../market/market.module.ts';
 import { AccountModule } from '../account/account.module.ts';
 import { ValidatorProxyModule } from '../validator-proxy/validator-proxy.module.ts';
+import { TelegramModule } from '../telegram/telegram.module.ts';
 
 export default class MempoolModule extends Module {
   public readonly storageService: StorageService;
@@ -29,10 +30,12 @@ export default class MempoolModule extends Module {
       web3Module,
       storageModule,
     );
+    const telegramModule = new TelegramModule();
     const marketModule = new MarketModule(
       storageModule,
       web3Module,
       accountModule,
+      telegramModule,
     );
     const priceOracleModule = new PriceOracleModule(
       web3Module,
