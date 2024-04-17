@@ -19,6 +19,8 @@ module.exports = {
           BLOXROUTE_WS_URL: 'wss://13.213.141.24/ws', // Singapore
           BLOXROUTE_HTTPS_URL: 'https://mev.api.blxrbdn.com',
           BLOXROUTE_AUTH_HEADER: 'N2Q0MzE5NzYtMDY1Ny00YjM3LWFiZjEtYzBiNTRhYjJjYWUxOmY0ZDc2MWVkNmIyZjlkYzNiYWEzNWIzZTM0NTFiMjFh',
+          // Flashbots
+          FLASHBOTS_HTTPS_URL: 'https://relay.flashbots.net',
           // Compound V2
           COMPTROLLER_PROXY_ADDRESS: '0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b',
           UNITROLLER_DEPLOYMENT_BLOCK: 7710669,
