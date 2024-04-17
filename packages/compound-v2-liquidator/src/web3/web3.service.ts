@@ -11,7 +11,6 @@ import Env from '../../utils/constants/env.ts';
 import type { ICallContractMethodParams } from './web3.interfaces.ts';
 import { filterAbi } from '../../utils/helpers/array.helpers.ts';
 import type { IDecodedLog } from '../../utils/interfaces/decoded-log.interface.ts';
-import { ethers, Wallet } from 'ethers';
 import type { ICreateRawLiquidationTxParams } from '../../utils/interfaces/create-raw-liquidation-tx-params.interface.ts';
 
 export class Web3Service extends Service {
@@ -141,11 +140,11 @@ export class Web3Service extends Service {
   async getFlashbotsSignature(body: string) {
     console.log('method -> web3Service.getFlashbotsSignature');
     // ethers.js
-    const wallet = new Wallet(Env.PRIVATE_KEY);
-    const signature =
-      wallet.address + ':' + (await wallet.signMessage(ethers.id(body)));
+    // const wallet = new Wallet(Env.PRIVATE_KEY);
+    // const signature =
+    //   wallet.address + ':' + (await wallet.signMessage(ethers.id(body)));
 
-    return signature;
+    // return signature;
   }
 
   async getFilteredLogs(

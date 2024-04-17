@@ -2,7 +2,6 @@ import CTokens from '../../artifacts/network/CTokens.json';
 import Tokens from '../../artifacts/network/Tokens.json';
 import Comptroller from '../../../../common/compound-protocol/artifacts/Comptroller.sol/Comptroller.json';
 import type { StorageService } from '../storage/storage.service.ts';
-import { toBigInt } from 'ethers';
 import { Service } from '../../utils/classes/service.ts';
 import type { Web3Service } from '../web3/web3.service.ts';
 import {
@@ -257,7 +256,7 @@ export class ComptrollerService extends Service {
       underlyingAddress,
       decimals,
       symbol,
-      exchangeRateMantissa: toBigInt(exchangeRateMantissa),
+      exchangeRateMantissa: BigInt(exchangeRateMantissa),
       underlyingDecimals,
       underlyingSymbol,
     };
