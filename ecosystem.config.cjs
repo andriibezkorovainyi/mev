@@ -5,7 +5,7 @@ module.exports = {
       exec_mode: 'fork',
       script: 'main.js',
       interpreter: '/root/.bun/bin/bun',
-      cwd: '/root/opt/mev/packages/compound-v2-liquidator',
+      cwd: '/opt/mev/packages/compound-v2-liquidator',
       time: true,
       env: {
           // Working environment for Compound V2 Liquidator
