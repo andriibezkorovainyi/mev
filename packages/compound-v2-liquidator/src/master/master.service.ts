@@ -5,6 +5,7 @@ import type { CollectorService } from '../collector/collector.service.ts';
 import { Service } from '../../utils/classes/service.ts';
 import type { BlockService } from '../block/block.service.ts';
 import Env from '../../utils/constants/env.ts';
+import type { TelegramService } from '../telegram/telegram.service.ts';
 
 export class MasterService extends Service {
   constructor(
@@ -13,6 +14,7 @@ export class MasterService extends Service {
     public readonly web3Service: Web3Service,
     private readonly collectorService: CollectorService,
     private readonly blockService: BlockService,
+    private readonly telegramService: TelegramService,
   ) {
     super();
   }
@@ -27,7 +29,10 @@ export class MasterService extends Service {
       .catch(this.cleanUpAndExit.bind(this));
 
     Env.SHOULD_FETCH_EXCHANGE_RATES = true;
+    Env.SHOULD_FETCH_UNDERLYING_PRICE = true;
     Env.SHOULD_EMIT_LIQUIDATION_EVENTS = true;
+    await this.telegramService.sendMessage('Synchronized with the blockchain');
+    return;
 
     this.blockService.listenForNewBlocks();
 
