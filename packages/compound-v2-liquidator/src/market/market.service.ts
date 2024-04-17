@@ -13,12 +13,14 @@ import {
 import CErc20 from '../../../../common/compound-protocol/artifacts/CErc20.sol/CErc20.json';
 import Env from '../../utils/constants/env.ts';
 import type { IDecodedLog } from '../../utils/interfaces/decoded-log.interface.ts';
+import type { TelegramService } from '../telegram/telegram.service.ts';
 
 export class MarketService extends Service {
   constructor(
     private readonly storageService: StorageService,
     private readonly web3Service: Web3Service,
     private readonly accountService: AccountService,
+    private readonly telegramService: TelegramService,
   ) {
     super();
   }
@@ -49,14 +51,14 @@ export class MarketService extends Service {
           break;
         default:
           break;
+        case MarketEventName.LiquidateBorrow:
+          this.liquidateBorrow(log);
+          break;
         // case MarketEventName.Mint:
         //   await this.mint(log);
         //   break;
         // case MarketEventName.Redeem:
         //   await this.redeem(log);
-        //   break;
-        // case MarketEventName.LiquidateBorrow:
-        //   this.liquidateBorrow(log);
         //   break;
       }
     }
@@ -229,16 +231,48 @@ export class MarketService extends Service {
     market.reserveFactorMantissa = newReserveFactorMantissa;
   }
 
-  // private liquidateBorrow(log) {
-  //   const [key1, key2, key3, key4, key5] =
-  //     MarketEventToOutput[MarketEventName.LiquidateBorrow].split(',');
+  private async liquidateBorrow(log: IDecodedLog) {
+    const [key1, key2, key3, key4, key5] =
+      MarketEventToOutput[MarketEventName.LiquidateBorrow].split(',');
 
-  // const liquidator = log[key1];
-  // const borrower = log[key2];
-  // const repayAmount = log[key3];
-  // const cTokenCollateral = log[key4];
-  // const seizeTokens = log[key5];
-  // }
+    const liquidator = log[key1];
+    const borrower = log[key2];
+    const repayAmount = log[key3];
+    const cTokenCollateral = log[key4];
+    const seizeTokens = log[key5];
+    const blockNumber = log.blockNumber;
+    const txIndex = log.transactionIndex;
+
+    if (!Env.SHOULD_EMIT_LIQUIDATION_EVENTS) {
+      return;
+    }
+
+    const txHash = (
+      await this.web3Service.getTrasactionByBlockAndIndex(blockNumber, txIndex)
+    )?.hash;
+    const marketLiquidated = this.storageService.getMarket(log.address);
+    const marketCollateral = this.storageService.getMarket(cTokenCollateral);
+
+    const messageParts = [
+      `Liquidator: ${liquidator}`,
+      `Borrower: ${borrower}`,
+      `Market: ${marketLiquidated.symbol} ${marketLiquidated.address}`,
+      `Repay Amount: ${Number(repayAmount) / 10 ** marketLiquidated.underlyingDecimals} ${marketLiquidated.underlyingSymbol}`,
+      `Collateral: ${marketCollateral.symbol} ${marketCollateral.address}`,
+      `Block number: ${blockNumber}`,
+      `TxHash: ${txHash}`,
+    ];
+
+    await this.sendNewLiquidationMessage(messageParts);
+  }
+
+  async sendNewLiquidationMessage(args: string[]) {
+    const bundlePrefix = 'New Liquidation event:';
+    args.unshift(bundlePrefix);
+    const message = args.join('\n');
+
+    await this.telegramService.sendMessage(message);
+  }
 
   private async borrow(log) {
     console.debug('function -> borrow');

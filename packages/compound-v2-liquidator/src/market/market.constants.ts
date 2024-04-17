@@ -6,9 +6,9 @@ export enum MarketEventName {
   ReservesReduced = 'ReservesReduced',
   NewReserveFactor = 'NewReserveFactor',
   Transfer = 'Transfer',
+  LiquidateBorrow = 'LiquidateBorrow',
   // Mint = 'Mint',
   // Redeem = 'Redeem',
-  // LiquidateBorrow = 'LiquidateBorrow',
 }
 
 export const MarketEventToOutput = {
@@ -21,8 +21,8 @@ export const MarketEventToOutput = {
   [MarketEventName.RepayBorrow]:
     'payer,borrower,repayAmount,accountBorrows,totalBorrows',
   [MarketEventName.NewReserveFactor]: 'newReserveFactorMantissa',
-  // [MarketEventName.LiquidateBorrow]:
-  //   'liquidator,borrower,repayAmount,cTokenCollateral,seizeTokens',
+  [MarketEventName.LiquidateBorrow]:
+    'liquidator,borrower,repayAmount,cTokenCollateral,seizeTokens',
   // [MarketEventName.Redeem]: 'redeemAmount,redeemTokens,redeemer',
   // [MarketEventName.Mint]: 'minter,mintAmount,mintTokens',
 };

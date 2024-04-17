@@ -43,6 +43,7 @@ export default class MasterModule extends Module {
       this.storageModule,
       this.web3Module,
       this.accountModule,
+      this.telegramModule,
     );
     this.validatorProxyModule = new ValidatorProxyModule(
       this.web3Module,
