@@ -6,6 +6,8 @@
   "scripts": {
     "build": "bun build --target bun --outfile main.js main.ts",
     "prod": "pm2 start ecosystem.config.cjs --env production",
+    "update:exchange": "bun run scripts/updateExchangeRates.ts",
+    "update:underlying": "bun run scripts/updateUnderlyingPrice.ts",
     "dev:master": "bun run --watch main.ts",
     "dev:mempool": "bun run workers/mempool.worker.ts --watch"
   },

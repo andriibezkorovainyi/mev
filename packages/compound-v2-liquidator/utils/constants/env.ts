@@ -31,6 +31,8 @@ class Env extends EnvCommon {
 
   public SHOULD_EMIT_LIQUIDATION_EVENTS: boolean;
 
+  public SHOULD_FETCH_UNDERLYING_PRICE: boolean;
+
   public readonly TG_BOT_TOKEN: string;
   public readonly CHAT_ID: string;
 
@@ -82,6 +84,9 @@ class Env extends EnvCommon {
 
     this.SHOULD_EMIT_LIQUIDATION_EVENTS =
       (process.env.SHOULD_EMIT_LIQUIDATION_EVENTS as string) === 'true';
+
+    this.SHOULD_FETCH_UNDERLYING_PRICE =
+      (process.env.SHOULD_FETCH_UNDERLYING_PRICE as string) === 'true';
 
     this.validate();
   }
@@ -154,6 +159,10 @@ class Env extends EnvCommon {
 
     if (!this.CHAT_ID) {
       throw new Error('Wrong CHAT_ID env variable');
+    }
+
+    if (this.SHOULD_FETCH_EXCHANGE_RATES === undefined) {
+      throw new Error('Wrong SHOULD_FETCH_EXCHANGE_RATES env variable');
     }
   }
 }
