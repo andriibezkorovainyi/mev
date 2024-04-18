@@ -306,11 +306,11 @@ export class LiquidatorService extends Service {
           `_repayAmount: ${repayAmount}`,
           `_repayToken: ${borrowMarket.underlyingSymbol} ${borrowMarket.underlyingAddress}`,
           '----------------------',
-          `value: $${Number(borrow.borrowValue / BigInt(1e18)) / 2}`,
+          `repayValue: $${Number(borrow.borrowValue / BigInt(1e18)) / 2}`,
           `collateralToken: ${collateralMarket.underlyingSymbol} ${collateralMarket.underlyingAddress}`,
         ];
 
-        this.telegramService.construcAndSendMessage(parts);
+        // this.telegramService.construcAndSendMessage(parts);
         continue;
       }
 
