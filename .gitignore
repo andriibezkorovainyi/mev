@@ -119,7 +119,7 @@ out
 
 .nuxt
 dist
- packages/compound-v2-liquidator/main.js
+packages/compound-v2-liquidator/main.js
 
 # Gatsby files
 
