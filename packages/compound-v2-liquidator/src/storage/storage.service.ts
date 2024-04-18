@@ -37,6 +37,8 @@ export class StorageService extends Service {
     await this.initMarkets();
 
     await this.initTokenConfigs();
+
+    await this.initBaseFeePerGas();
   }
 
   async initAccounts() {
@@ -49,6 +51,12 @@ export class StorageService extends Service {
 
   async initTokenConfigs() {
     this.tokenConfigs = (await this.cacheService.get('tokenConfigs')) || {};
+  }
+
+  async initBaseFeePerGas() {
+    this.baseFeePerGas = BigInt(
+      (await this.cacheService.get('baseFeePerGas')) || 0,
+    );
   }
 
   async initComptroller() {
@@ -136,6 +144,7 @@ export class StorageService extends Service {
       ['markets', this.markets],
       ['accounts', this.accounts],
       ['tokenConfigs', this.tokenConfigs],
+      ['baseFeePerGas', this.baseFeePerGas],
     ]);
   }
 
