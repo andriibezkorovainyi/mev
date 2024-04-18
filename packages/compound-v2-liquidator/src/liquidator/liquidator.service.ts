@@ -150,6 +150,7 @@ export class LiquidatorService extends Service {
 
     if (!tx) {
       this.txData.delete(pendingPriceConfig.symbolHash);
+      this.sendLiquidationErrorToTelegram(new Error('Tx was not created\n' + 'liquidationData:\n' + Object.values(liquidationData).join('\n'));
       return;
     }
 
@@ -158,7 +159,7 @@ export class LiquidatorService extends Service {
     const reportAnalytic = async (bundleHash: string) => {
       if (!bundleHash) {
         await this.sendLiquidationErrorToTelegram(
-          new Error('Bundle was not created'),
+          new Error('Bundle was not created\n' + 'liquidationData:\n' + Object.values(liquidationData).join('\n')),
         );
         return;
       }
@@ -166,16 +167,14 @@ export class LiquidatorService extends Service {
       const bundleTrace =
         (await this.bundleService.traceBundle(bundleHash)) ||
         'No trace, most likely exceeded request limit';
-      const { blockNumber } = await this.web3Service.getTransaction(
-        tx.rawTransaction,
-      );
+      const sentTx = await this.web3Service.getTransaction(tx.rawTransaction);
 
       const infoParts = [
         'Executed liquidation info:',
-        `Status: ${blockNumber ? 'success' : 'failed'}`,
-        `TxHash: ${tx?.transactionHash || null}`,
+        `TxHash: ${tx.transactionHash}`,
         `BundleHash: ${bundleHash}`,
         `Trace: ${JSON.stringify(bundleTrace)}`,
+        `Status: ${sentTx?.blockNumber ? 'success' : 'failed'}`,
       ];
 
       await this.telegramService.construcAndSendMessage(infoParts);
