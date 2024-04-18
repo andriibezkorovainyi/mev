@@ -234,6 +234,7 @@ export class MarketService extends Service {
   }
 
   private async liquidateBorrow(log: IDecodedLog) {
+    console.debug('function -> liquidateBorrow');
     const [key1, key2, key3, key4, key5] =
       MarketEventToOutput[MarketEventName.LiquidateBorrow].split(',');
 
