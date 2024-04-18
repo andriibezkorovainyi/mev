@@ -150,7 +150,13 @@ export class LiquidatorService extends Service {
 
     if (!tx) {
       this.txData.delete(pendingPriceConfig.symbolHash);
-      this.sendLiquidationErrorToTelegram(new Error('Tx was not created\n' + 'liquidationData:\n' + Object.values(liquidationData).join('\n'));
+      this.sendLiquidationErrorToTelegram(
+        new Error(
+          'Tx was not created\n' +
+            'liquidationData:\n' +
+            Object.values(liquidationData).join('\n'),
+        ),
+      );
       return;
     }
 
@@ -159,7 +165,11 @@ export class LiquidatorService extends Service {
     const reportAnalytic = async (bundleHash: string) => {
       if (!bundleHash) {
         await this.sendLiquidationErrorToTelegram(
-          new Error('Bundle was not created\n' + 'liquidationData:\n' + Object.values(liquidationData).join('\n')),
+          new Error(
+            'Bundle was not created\n' +
+              'liquidationData:\n' +
+              Object.values(liquidationData).join('\n'),
+          ),
         );
         return;
       }
