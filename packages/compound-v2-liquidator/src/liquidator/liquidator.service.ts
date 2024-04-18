@@ -301,6 +301,10 @@ export class LiquidatorService extends Service {
         );
         account.tokens[collateral.address] = 0n; // We mark this collateral as zero to avoid infinite loop and search for another one
         console.log('borrower', account.address);
+        console.log('borrowMarket', borrow.address);
+        console.log('marketCollateral', collateral.address);
+        console.log('repayAmount', repayAmount);
+        console.log('repayToken', borrowMarket.underlyingSymbol);
         continue;
       }
 
