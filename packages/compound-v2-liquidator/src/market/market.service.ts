@@ -157,7 +157,7 @@ export class MarketService extends Service {
     const market = this.storageService.getMarket(cToken);
 
     if (
-      // Env.SHOULD_FETCH_EXCHANGE_RATES &&
+      Env.SHOULD_FETCH_EXCHANGE_RATES &&
       blockNumber >= Env.NORMAL_PRICE_ORACLE_START_BLOCK &&
       blockNumber > market.exchangeRateLastUpdateBlock
     ) {
