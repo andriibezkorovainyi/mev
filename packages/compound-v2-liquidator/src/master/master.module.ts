@@ -99,6 +99,7 @@ export default class MasterModule extends Module {
     const collectorService =
       this.collectorModule.getService('collectorService');
     const blockService = this.blockModule.getService('blockService');
+    const telegramService = this.telegramModule.getService('telegramService');
 
     const masterService = new MasterService(
       storageService,
@@ -106,6 +107,7 @@ export default class MasterModule extends Module {
       web3Service,
       collectorService,
       blockService,
+      telegramService,
     );
 
     this.registerService('masterService', masterService);
