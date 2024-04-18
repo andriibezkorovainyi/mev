@@ -10,7 +10,7 @@ async function updateUnderlyingPrice() {
     masterModule.storageModule.getService('storageService');
   const priceOracleService =
     masterModule.priceOracleModule.getService('priceOracleService');
-
+  const marketService = masterModule.marketModule.getService('marketService');
   await storageService.initComptroller();
   await storageService.initPointerHeight();
   await storageService.initMarkets();
@@ -19,18 +19,22 @@ async function updateUnderlyingPrice() {
   const markets = Object.values(storageService.getMarkets());
 
   for (const market of markets) {
-    market.underlyingPriceMantissa =
-      await priceOracleService.fetchUnderlyingPrice(
-        market.address,
-        pointerHeight,
-      );
+    const underlyingPrice = await priceOracleService.fetchUnderlyingPrice(
+      market.address,
+      pointerHeight,
+    );
+    await marketService.updateUnderlyingPrice(
+      market.address,
+      underlyingPrice,
+      pointerHeight,
+    );
 
     await delay(500);
   }
 
   await storageService.cacheMarkets();
 
-  console.log('Exchange rates updated');
+  console.log('Underlying prices updated');
   process.exit(1);
 }
 
