@@ -166,6 +166,8 @@ export class MarketService extends Service {
         blockNumber,
       );
       market.exchangeRateLastUpdateBlock = blockNumber;
+    } else {
+      console.debug('Exchange rate not updated');
     }
   }
 
