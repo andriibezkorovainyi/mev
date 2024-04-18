@@ -53,39 +53,6 @@ sudo apt-get install redis
 sudo systemctl enable redis-server
 ```
 
-
-
-
-`cd /opt/parser-api yarn install`
-
-Добавить .env & ecosystem.config.js
-
-### Contracts folder sync
-
-`nano ~/.ssh/root_rsa`
-
-`chmod 600 ~/.ssh/root_rsa`
-
-`nano ~/.ssh/root_rsa.pub`
-
-`nano ~/.bashrc`
-
-# Запуск ssh-agent и добавление ключа
-if [ -z "$SSH_AUTH_SOCK" ]; then
-eval "$(ssh-agent -s)"
-ssh-add ~/.ssh/id_rsa
-ssh-add ~/.ssh/root_rsa
-fi
-eval $(keychain --eval --agents ssh id_rsa root_rsa)
-
-`source ~/.bashrc`
-
-`rsync -avz --progress /opt/parser-api/contracts/<network>/* root@192.168.0.4:/opt/parser-api/contracts/<network>`
-
-`crontab -e`
-
-*/10 * * * * sshpass -p hC-2aF69qDPs1j rsync -avz --progress /opt/parser-api/contracts/<NETWORK>/* root@192.168.0.4:/opt/parser-api/contracts/<NETWORK> > /var/log/rsync-cron.log 2>&1
-
 # mev
 
 find a path to bun executable
