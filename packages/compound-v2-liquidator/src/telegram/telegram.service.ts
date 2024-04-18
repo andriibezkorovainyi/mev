@@ -20,4 +20,9 @@ export class TelegramService extends Service {
   async sendMessage(message: string) {
     await this.sendMessageToPeers(message);
   }
+
+  async construcAndSendMessage(parts: string[]) {
+    const message = parts.join('\n');
+    await this.sendMessage(message);
+  }
 }

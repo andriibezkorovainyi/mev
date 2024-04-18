@@ -171,13 +171,14 @@ export class LiquidatorService extends Service {
       );
 
       const infoParts = [
+        'Executed liquidation info:',
         `Status: ${blockNumber ? 'success' : 'failed'}`,
         `TxHash: ${tx?.transactionHash || null}`,
         `BundleHash: ${bundleHash}`,
         `Trace: ${JSON.stringify(bundleTrace)}`,
       ];
 
-      await this.sendLiquidationDataToTelegram(infoParts);
+      await this.telegramService.construcAndSendMessage(infoParts);
     };
 
     // @ts-ignore
@@ -187,14 +188,6 @@ export class LiquidatorService extends Service {
       .catch(this.sendLiquidationErrorToTelegram);
 
     this.txData.delete(pendingPriceConfig.symbolHash);
-  }
-
-  async sendLiquidationDataToTelegram(args: any[]) {
-    const bundlePrefix = 'Executed liquidation info:';
-    args.unshift(bundlePrefix);
-    const message = args.join('\n');
-
-    await this.telegramService.sendMessage(message);
   }
 
   async sendLiquidationErrorToTelegram(error: Error) {
@@ -305,6 +298,19 @@ export class LiquidatorService extends Service {
         console.log('marketCollateral', collateral.address);
         console.log('repayAmount', repayAmount);
         console.log('repayToken', borrowMarket.underlyingSymbol);
+        const parts = [
+          'Path not found for liquidation:',
+          `_borrower: ${account.address}`,
+          `_cMarket: ${borrow.address}`,
+          `_cMarketCollateral: ${collateral.address}`,
+          `_repayAmount: ${repayAmount}`,
+          `_repayToken: ${borrowMarket.underlyingSymbol} ${borrowMarket.underlyingAddress}`,
+          '----------------------',
+          `value: $${Number(borrow.borrowValue / BigInt(1e18)) / 2}`,
+          `collateralToken: ${collateralMarket.underlyingSymbol} ${collateralMarket.underlyingAddress}`,
+        ];
+
+        this.telegramService.construcAndSendMessage(parts);
         continue;
       }
 
