@@ -4,6 +4,7 @@ import { delay } from '../../../common/helpers/delay.ts';
 
 async function updateUnderlyingPrice() {
   Env.SHOULD_FETCH_UNDERLYING_PRICE = true;
+  Env.SHOULD_FETCH_UNDERLYING_PRICE = true;
 
   const masterModule = new MasterModule(undefined);
   const storageService =
