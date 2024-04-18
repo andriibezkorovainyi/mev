@@ -4,6 +4,7 @@ import type { AccountService } from '../account/account.service.ts';
 import type { MarketService } from './market.service.ts';
 import MasterModule from '../master/master.module.ts';
 import type { PriceOracleService } from '../price-oracle/price-oracle.service.ts';
+import { delay } from '../../../../common/helpers/delay.ts';
 
 describe('MarketService', () => {
   const accounts = ['0x502CB8985B2C92a8d4bf309cDAa89DE9be442708'];
@@ -62,24 +63,24 @@ describe('MarketService', () => {
   it('should collect correct exchangeRates', async () => {
     // const markets = [
     // ].map((address) => storageService.getMarket(address));
-    // const markets = Object.values(storageService.getMarkets());
-    // const pointerHeight = storageService.getPointerHeight();
-    // console.log('pointerHeight:', pointerHeight);
-    //
-    // for (const market of markets) {
-    //   const exchangeRate = await marketService.fetchExchangeRateMantissa(
-    //     market.address,
-    //     pointerHeight,
-    //   );
-    //
-    //   try {
-    //     expect(market.exchangeRateMantissa).toEqual(exchangeRate);
-    //   } catch (error) {
-    //     console.log('market:', market.address);
-    //     console.error(error);
-    //   }
-    // await delay(500);
-    // }
+    const markets = Object.values(storageService.getMarkets());
+    const pointerHeight = storageService.getPointerHeight();
+    console.log('pointerHeight:', pointerHeight);
+
+    for (const market of markets) {
+      const exchangeRate = await marketService.fetchExchangeRateMantissa(
+        market.address,
+        pointerHeight,
+      );
+
+      try {
+        expect(market.exchangeRateMantissa).toEqual(exchangeRate);
+      } catch (error) {
+        console.log('market:', market.address);
+        console.error(error);
+      }
+      await delay(500);
+    }
   }, 60_000);
 
   it('should should not collect any logs for markets before comptroller deployment', async () => {

@@ -180,15 +180,6 @@ describe('Liquidator', () => {
       ]),
     ).map((address) => storageService.getAccount(address)!);
 
-    // const marketWithWrongUnderlyingPrice = storageService.getMarket(
-    //   '0xccF4429DB6322D5C611ee964527D42E5d685DD6a',
-    // )!;
-
-    // marketWithWrongUnderlyingPrice.underlyingPriceMantissa =
-    //   213102633260000000000000000000000n;
-
-    // console.log('accounts', accounts.length);
-
     // let count = 15;
     for (let i = 0; i < accounts.length; i++) {
       // if (count === 0) {
