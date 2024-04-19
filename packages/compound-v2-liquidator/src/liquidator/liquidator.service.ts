@@ -25,6 +25,7 @@ import {
   EthSymbolHash,
 } from '../mempool/mempool.constants.ts';
 import Path from '../../artifacts/network/Path.json';
+import { getDateString } from '../../../../common/helpers/getDateString.ts';
 
 export class LiquidatorService extends Service {
   private readonly txData = new Map<string, [string, ILiquidationData]>();
@@ -139,70 +140,91 @@ export class LiquidatorService extends Service {
       return;
     }
 
+    const blockNumber = this.storageService.getNetworkHeight() + 1;
+
+    const collectTelegramMessageParts = (tx?: SignTransactionResult) => {
+      return [
+        '----------------------',
+        'Arguments:',
+        ...Object.entries(liquidationData).map(
+          ([key, value]) => `${key}: ${JSON.stringify(value)}`,
+        ),
+        '----------------------',
+        'Transactions:',
+        `rawCreatedTx: ${JSON.stringify(tx?.rawTransaction || null)}`,
+        `rawTargetTx: ${rawTargetTx}`,
+        '----------------------',
+        `blockNumber: ${blockNumber}`,
+        `serverTime: ${getDateString()}`,
+      ];
+    };
+
     let tx: SignTransactionResult;
     try {
       tx = await this.createLiquidationTx(liquidationData);
     } catch (e) {
-      this.sendLiquidationErrorToTelegram(e as Error);
+      console.error(e);
+
+      await this.sendLiquidationErrorToTelegram([
+        'Reason: tx creation error',
+        `Message: ${e.message}`,
+        ...collectTelegramMessageParts(),
+      ]);
+
       this.txData.delete(pendingPriceConfig.symbolHash);
       return;
     }
 
     if (!tx) {
       this.txData.delete(pendingPriceConfig.symbolHash);
-      this.sendLiquidationErrorToTelegram(
-        new Error(
-          'Tx was not created\n' +
-            'liquidationData:\n' +
-            Object.values(liquidationData).join('\n'),
-        ),
-      );
+      await this.sendLiquidationErrorToTelegram([
+        'Reason: tx was not created',
+        ...collectTelegramMessageParts(),
+      ]);
       return;
     }
 
-    const blockNumber = this.storageService.getNetworkHeight() + 1;
-
-    const reportAnalytic = async (bundleHash: string) => {
-      if (!bundleHash) {
-        await this.sendLiquidationErrorToTelegram(
-          new Error(
-            'Bundle was not created\n' +
-              'liquidationData:\n' +
-              Object.values(liquidationData).join('\n'),
-          ),
-        );
-        return;
-      }
-
-      const bundleTrace =
-        (await this.bundleService.traceBundle(bundleHash)) ||
-        'No trace, most likely exceeded request limit';
-      const sentTx = await this.web3Service.getTransaction(tx.rawTransaction);
-
-      const infoParts = [
-        'Executed liquidation info:',
-        `TxHash: ${tx.transactionHash}`,
-        `BundleHash: ${bundleHash}`,
-        `Trace: ${JSON.stringify(bundleTrace)}`,
-        `Status: ${sentTx?.blockNumber ? 'success' : 'failed'}`,
-      ];
-
-      await this.telegramService.construcAndSendMessage(infoParts);
-    };
-
     // @ts-ignore
-    this.bundleService
-      .submitBundleBLXR(blockNumber, [rawTargetTx, tx.rawTransaction])
-      .then(reportAnalytic)
-      .catch(this.sendLiquidationErrorToTelegram);
+    const bundleHash = await this.bundleService.submitBundleBLXR(blockNumber, [
+      rawTargetTx,
+      tx.rawTransaction,
+    ]);
+
+    if (!bundleHash) {
+      const parts = [
+        'Reason: bundle was not created',
+        ...collectTelegramMessageParts(tx),
+      ];
+      await this.sendLiquidationErrorToTelegram(parts);
+      return;
+    }
+
+    const bundleTrace =
+      (await this.bundleService.traceBundle(bundleHash)) ||
+      'No trace, most likely exceeded request limit';
+    const sentTx = await this.web3Service.getTransaction(tx.rawTransaction);
+
+    const infoParts = [
+      `createdTxHash: ${tx.transactionHash}`,
+      `bundleHash: ${bundleHash}`,
+      `trace: ${JSON.stringify(bundleTrace)}`,
+      `createdTxStatus: ${sentTx?.blockNumber ? 'success' : 'failed'}`,
+      ...collectTelegramMessageParts(),
+    ];
+
+    await this.sendLiquidationExecutionResultToTelegram(infoParts);
 
     this.txData.delete(pendingPriceConfig.symbolHash);
   }
 
-  async sendLiquidationErrorToTelegram(error: Error) {
-    console.error(error);
-    const errorMessage = error.message;
-    const message = `Liquidation error:\n${errorMessage}`;
+  async sendLiquidationErrorToTelegram(parts: string[]) {
+    const message = `Liquidation error:\n${parts.join('\n')}`;
+
+    await this.telegramService.sendMessage(message);
+  }
+
+  async sendLiquidationExecutionResultToTelegram(parts: string[]) {
+    const message = `Liquidation execution result:\n${parts.join('\n')}`;
 
     await this.telegramService.sendMessage(message);
   }
@@ -263,19 +285,16 @@ export class LiquidatorService extends Service {
       const collateral = this.findCollateralToLiquidate(account);
 
       if (
-        Math.round(Number(collateral.collateralValue) / 1e18) <=
-        (Env.MINIMUM_LIQUIDATION_VALUE / 2) *
-          (Number(liquidationIncentiveMantissa) / 1e18)
+        !this.isCollateralValueEnough(
+          collateral.collateralValue,
+          liquidationIncentiveMantissa!,
+        )
       ) {
         break;
       }
 
       const borrow = this.findBorrowToLiquidate(account);
-
-      if (
-        Math.round(Number(borrow.borrowValue) / 1e18) <
-        Env.MINIMUM_LIQUIDATION_VALUE
-      ) {
+      if (!this.isBorrowValueEnough(borrow.borrowValue)) {
         break;
       }
 
@@ -561,5 +580,23 @@ export class LiquidatorService extends Service {
   getPath(borrowSymbol: string, collateralSymbol: string) {
     const key = `${borrowSymbol}-${collateralSymbol}` as keyof typeof Path;
     return Path[key];
+  }
+
+  isBorrowValueEnough(borrowValue: bigint) {
+    // max close value more than minimum liquidation value
+    return (
+      borrowValue / 2n / BigInt(1e18) >= BigInt(Env.MINIMUM_LIQUIDATION_VALUE)
+    );
+  }
+
+  isCollateralValueEnough(
+    collateralValue: bigint,
+    liquidationIncentiveMantissa: bigint,
+  ) {
+    return (
+      collateralValue >=
+      BigInt((Env.MINIMUM_LIQUIDATION_VALUE / 2) * 1e18) *
+        liquidationIncentiveMantissa
+    );
   }
 }
