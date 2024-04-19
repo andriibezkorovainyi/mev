@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "build": "bun run build:compv2",
     "build:compv2": "bun build --target bun --outfile packages/compound-v2-liquidator/main.js packages/compound-v2-liquidator/main.ts",
     "prod": "pm2 start ecosystem.config.cjs",
     "lint": "eslint --ext .ts .",
