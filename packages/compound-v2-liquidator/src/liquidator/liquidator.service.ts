@@ -14,7 +14,10 @@ import { deepCopy } from '../../../../common/helpers/deepCopy.ts';
 import type { ILiquidationData } from '../../utils/interfaces/liquidation-data.interface.ts';
 import Env from '../../utils/constants/env.ts';
 import { findAsset } from '../../utils/helpers/array.helpers.ts';
-import type { PendingPriceUpdateMessage } from '../mempool/pending-price-update.message.ts';
+import type {
+  IPendingPriceConfig,
+  PendingPriceUpdateMessage,
+} from '../mempool/pending-price-update.message.ts';
 import type { BundleService } from '../bundle/bundle.service.ts';
 import { WETH_ADDRESS } from './liquidator.constants.ts';
 import type { TelegramService } from '../telegram/telegram.service.ts';
@@ -26,6 +29,10 @@ import {
 } from '../mempool/mempool.constants.ts';
 import Path from '../../artifacts/network/Path.json';
 import { getDateString } from '../../../../common/helpers/getDateString.ts';
+import type { IExecuteLiquidationData } from '../../utils/interfaces/execute-liquidation-data.interface.ts';
+import type { TokenConfigEntity } from '../price-oracle/token-config.entity.ts';
+import type { MarketEntity } from '../market/market.entity.ts';
+import { Web3 } from 'web3';
 
 export class LiquidatorService extends Service {
   private readonly txData = new Map<string, [string, ILiquidationData]>();
@@ -43,84 +50,38 @@ export class LiquidatorService extends Service {
 
   async processPendingPriceUpdate(message: PendingPriceUpdateMessage) {
     console.log('method -> liquidatorService.processPendingPriceUpdate');
-    const [pendingPriceConfig, rawTx] = message.data;
+    const { pendingPriceConfig, targetTxRaw, targetTxHash } = message.data;
 
-    this.txData.set(pendingPriceConfig.symbolHash, [
-      rawTx,
-      {
-        _repayTokens: [],
-        _cMarkets: [],
-        _borrowers: [],
-        _repayAmounts: [],
-        _cMarketCollaterals: [],
-        _path: [],
-      },
-    ]);
-
-    const oldPrices = [];
-    const markets = [];
-    const tokenConfigs = this.storageService.getTokenConfigsBySymbolHash(
-      pendingPriceConfig.symbolHash,
+    const { tokenConfigs, markets, oldPrices } = this.setupLiquidation(
+      pendingPriceConfig,
+      targetTxRaw,
     );
 
-    if (pendingPriceConfig.symbolHash === EthSymbolHash) {
-      const fixedEthTokenConfigs =
-        this.storageService.getFixedEthTokenConfigs();
-      tokenConfigs.push(...fixedEthTokenConfigs);
-    }
+    this.getEntities(tokenConfigs, markets, pendingPriceConfig);
 
-    for (const tokenConfig of tokenConfigs) {
-      oldPrices.push(tokenConfig.price);
-      if (tokenConfig.symbolHash === pendingPriceConfig.symbolHash) {
-        tokenConfig.price = pendingPriceConfig.price;
-      }
-      const newPendingUnderlyingPriceMantissa =
-        this.priceOracleService.getUnderlyingPrice(tokenConfig);
+    // console.log('tokenConfigs', tokenConfigs);
+    // console.log('markets', markets);
+    // console.log('oldPrices', oldPrices);
 
-      const market = this.storageService.getMarket(tokenConfig.marketAddress);
-      market.pendingUnderlyingPriceMantissa = newPendingUnderlyingPriceMantissa;
-
-      console.log('pendingPriceConfig', pendingPriceConfig);
-      console.log('market', market.symbol, market.address);
-      console.log(
-        'newPendingUnderlyingPriceMantissa',
-        newPendingUnderlyingPriceMantissa,
-      );
-
-      markets.push(market);
-    }
+    this.mutateUpdatePrices(
+      tokenConfigs,
+      oldPrices,
+      markets,
+      pendingPriceConfig,
+    );
 
     if (!markets.length) {
-      console.error('No markets found');
+      throw new Error('No markets found');
     }
 
-    const accounts = Array.from(
-      markets.reduce((acc, market) => {
-        market.accounts.forEach((address) => acc.add(address));
-        return acc;
-      }, new Set<string>()),
-    );
+    await this.performCalculations(markets, pendingPriceConfig);
 
-    // const start = Date.now();
-
-    await Promise.all(
-      accounts.map((account) =>
-        this.findLiquidationData(account, pendingPriceConfig.symbolHash),
-      ),
-    );
-
-    for (const tokenConfig of tokenConfigs) {
-      // Reset prices to avoid affecting other calculations
-      const market = this.storageService.getMarket(tokenConfig.marketAddress);
-      market.pendingUnderlyingPriceMantissa = 0n;
-      tokenConfig.price = oldPrices.shift()!;
-    }
+    this.mutateResetPrices(tokenConfigs, markets, oldPrices);
 
     console.log(
       'markets',
       markets.map(({ symbol }) => symbol),
     );
-    console.log('Account quantity:', accounts.length);
     // console.log('Time of liquidity calculations:', Date.now() - start, 'ms');
 
     const [rawTargetTx, liquidationData] = this.txData.get(
@@ -142,7 +103,9 @@ export class LiquidatorService extends Service {
 
     const blockNumber = this.storageService.getNetworkHeight() + 1;
 
-    const collectTelegramMessageParts = (tx?: SignTransactionResult) => {
+    const collectDetails = (tx?: SignTransactionResult) => {
+      console.log('rawTargetTx', rawTargetTx);
+      console.log('rawCreatedTx', tx?.rawTransaction);
       return [
         '----------------------',
         'Arguments:',
@@ -151,50 +114,154 @@ export class LiquidatorService extends Service {
         ),
         '----------------------',
         'Transactions:',
-        `rawCreatedTx: ${JSON.stringify(tx?.rawTransaction || null)}`,
-        `rawTargetTx: ${rawTargetTx}`,
+        `createdTx: ${tx?.transactionHash || 'not created'}`,
+        `targetTx: ${targetTxHash}`,
         '----------------------',
+        'General:',
         `blockNumber: ${blockNumber}`,
         `serverTime: ${getDateString()}`,
       ];
     };
 
-    let tx: SignTransactionResult;
-    try {
-      tx = await this.createLiquidationTx(liquidationData);
-    } catch (e) {
-      console.error(e);
-
-      await this.sendLiquidationErrorToTelegram([
-        'Reason: tx creation error',
-        `Message: ${e.message}`,
-        ...collectTelegramMessageParts(),
-      ]);
-
-      this.txData.delete(pendingPriceConfig.symbolHash);
-      return;
-    }
+    const tx = await this.createLiquidationTx(liquidationData, collectDetails);
 
     if (!tx) {
       this.txData.delete(pendingPriceConfig.symbolHash);
       await this.sendLiquidationErrorToTelegram([
         'Reason: tx was not created',
-        ...collectTelegramMessageParts(),
+        ...collectDetails(),
       ]);
       return;
     }
 
-    // @ts-ignore
-    const bundleHash = await this.bundleService.submitBundleBLXR(blockNumber, [
+    console.log('txHash', tx.transactionHash);
+
+    const bundleHash = await this.executeLiquidation({
       rawTargetTx,
-      tx.rawTransaction,
+      tx,
+      blockNumber,
+      collectDetails,
+    });
+
+    console.log('bundleHash', bundleHash);
+
+    await this.reportLiquidationExecutionResult(bundleHash, tx, collectDetails);
+
+    this.txData.delete(pendingPriceConfig.symbolHash);
+  }
+
+  setupLiquidation(pendingPriceConfig: IPendingPriceConfig, rawTx: string) {
+    console.log('method -> liquidatorService.setupLiquidation');
+    this.txData.set(pendingPriceConfig.symbolHash, [
+      rawTx,
+      {
+        _repayTokens: [],
+        _cMarkets: [],
+        _borrowers: [],
+        _repayAmounts: [],
+        _cMarketCollaterals: [],
+        _path: [],
+      },
     ]);
 
+    const oldPrices: bigint[] = [];
+    const markets: MarketEntity[] = [];
+    const tokenConfigs: TokenConfigEntity[] = [];
+
+    return { tokenConfigs, markets, oldPrices };
+  }
+
+  mutateResetPrices(
+    tokenConfigs: TokenConfigEntity[],
+    markets: MarketEntity[],
+    oldPrices: bigint[],
+  ) {
+    console.log('method -> liquidatorService.mutateResetPrices');
+    for (let i = 0; i < tokenConfigs.length; i++) {
+      const tokenConfig = tokenConfigs[i];
+      const market = markets[i];
+      // Reset prices to avoid affecting other calculations
+      tokenConfig.price = oldPrices.shift()!;
+      market.pendingUnderlyingPriceMantissa = 0n;
+    }
+  }
+
+  async performCalculations(
+    markets: MarketEntity[],
+    pendingPriceConfig: IPendingPriceConfig,
+  ) {
+    const accounts = Array.from(
+      markets.reduce((acc, market) => {
+        market.accounts.forEach((address) => acc.add(address));
+        return acc;
+      }, new Set<string>()),
+    );
+
+    console.log('Account quantity:', accounts.length);
+
+    await Promise.all(
+      accounts.map((account) =>
+        this.findLiquidationData(account, pendingPriceConfig.symbolHash),
+      ),
+    );
+  }
+
+  getEntities(
+    tokenConfigs: TokenConfigEntity[],
+    markets: MarketEntity[],
+    pendingPriceConfig: IPendingPriceConfig,
+  ) {
+    tokenConfigs.push(
+      ...this.storageService.getTokenConfigsBySymbolHash(
+        pendingPriceConfig.symbolHash,
+      ),
+    );
+
+    if (pendingPriceConfig.symbolHash === EthSymbolHash) {
+      const fixedEthTokenConfigs =
+        this.storageService.getFixedEthTokenConfigs();
+      tokenConfigs.push(...fixedEthTokenConfigs);
+    }
+
+    for (const tokenConfig of tokenConfigs) {
+      markets.push(this.storageService.getMarket(tokenConfig.marketAddress));
+    }
+  }
+
+  mutateUpdatePrices(
+    tokenConfigs: TokenConfigEntity[],
+    oldPrices: bigint[],
+    markets: MarketEntity[],
+    pendingPriceConfig: IPendingPriceConfig,
+  ) {
+    console.log('method -> liquidatorService.updatePrices');
+    for (let i = 0; i < tokenConfigs.length; i++) {
+      const tokenConfig = tokenConfigs[i];
+      oldPrices.push(tokenConfig.price!);
+      if (tokenConfig.symbolHash === pendingPriceConfig.symbolHash) {
+        tokenConfig.price = pendingPriceConfig.price;
+      }
+      const newPendingUnderlyingPriceMantissa =
+        this.priceOracleService.getUnderlyingPrice(tokenConfig);
+      const market = markets[i];
+      market.pendingUnderlyingPriceMantissa = newPendingUnderlyingPriceMantissa;
+
+      console.log('pendingPriceConfig', pendingPriceConfig);
+      console.log('market', market.symbol, market.address);
+      console.log(
+        'newPendingUnderlyingPriceMantissa',
+        newPendingUnderlyingPriceMantissa,
+      );
+    }
+  }
+
+  async reportLiquidationExecutionResult(
+    bundleHash: string | undefined,
+    tx: SignTransactionResult,
+    collectDetails: (arg?: any) => string[],
+  ) {
     if (!bundleHash) {
-      const parts = [
-        'Reason: bundle was not created',
-        ...collectTelegramMessageParts(tx),
-      ];
+      const parts = ['Reason: bundle was not created', ...collectDetails(tx)];
       await this.sendLiquidationErrorToTelegram(parts);
       return;
     }
@@ -202,25 +269,49 @@ export class LiquidatorService extends Service {
     const bundleTrace =
       (await this.bundleService.traceBundle(bundleHash)) ||
       'No trace, most likely exceeded request limit';
-    const sentTx = await this.web3Service.getTransaction(tx.rawTransaction);
+
+    console.log('bundleTrace', bundleTrace);
+
+    const sentTx = await this.web3Service.getTransaction(tx.transactionHash);
 
     const infoParts = [
-      `createdTxHash: ${tx.transactionHash}`,
       `bundleHash: ${bundleHash}`,
-      `trace: ${JSON.stringify(bundleTrace)}`,
+      `trace: ${JSON.stringify(bundleTrace, null, 2)}`,
       `createdTxStatus: ${sentTx?.blockNumber ? 'success' : 'failed'}`,
-      ...collectTelegramMessageParts(),
+      ...collectDetails(tx),
     ];
 
     await this.sendLiquidationExecutionResultToTelegram(infoParts);
-
-    this.txData.delete(pendingPriceConfig.symbolHash);
   }
 
   async sendLiquidationErrorToTelegram(parts: string[]) {
     const message = `Liquidation error:\n${parts.join('\n')}`;
 
     await this.telegramService.sendMessage(message);
+  }
+
+  async executeLiquidation({
+    rawTargetTx,
+    tx,
+    blockNumber,
+    collectDetails,
+  }: IExecuteLiquidationData) {
+    let bundleHash: string | undefined;
+    try {
+      bundleHash = await this.bundleService.submitBundleBLXR(blockNumber, [
+        rawTargetTx,
+        tx.rawTransaction,
+      ]);
+    } catch (e) {
+      console.error(e);
+      await this.sendLiquidationErrorToTelegram([
+        'reason: bundle submission error',
+        `message: ${e.message}`,
+        ...collectDetails(tx),
+      ]);
+    }
+
+    return bundleHash;
   }
 
   async sendLiquidationExecutionResultToTelegram(parts: string[]) {
@@ -246,7 +337,10 @@ export class LiquidatorService extends Service {
     this.appendAccountLiqData(account, liquidity, symbolHash);
   }
 
-  async createLiquidationTx(liquidationLoopData: ILiquidationData) {
+  async createLiquidationTx(
+    liquidationLoopData: ILiquidationData,
+    _collectDetails: () => string[],
+  ) {
     console.log('method -> liquidatorService.createLiquidationTx');
 
     const address = Env.LIQUIDATOR_CONTRACT_ADDRESS;
@@ -257,13 +351,27 @@ export class LiquidatorService extends Service {
 
     // console.log('liquidationLoopData', liquidationLoopData);
 
-    const tx = await this.web3Service.createAndSignTx({
-      address,
-      abi,
-      args,
-      gas,
-      maxFeePerGas,
-    });
+    let tx: SignTransactionResult | undefined;
+    try {
+      tx = await this.web3Service.createAndSignTx({
+        address,
+        abi,
+        args,
+        gas,
+        maxFeePerGas,
+      });
+    } catch (e) {
+      console.error(e);
+
+      await this.sendLiquidationErrorToTelegram([
+        'reason: tx creation error',
+        `message: ${e.message}`,
+        `baseFeePerGas: ${Web3.utils.toWei(this.storageService.getBaseFeePerGas(), 'gwei')} gwei`,
+        `maxFeePerGas: ${Web3.utils.toWei(maxFeePerGas, 'gwei')} gwei`,
+        `gas: ${Web3.utils.toWei(gas, 'gwei')} gwei`,
+        ..._collectDetails(),
+      ]);
+    }
 
     return tx;
   }
@@ -320,12 +428,11 @@ export class LiquidatorService extends Service {
         console.error(
           `Path not found for borrow market ${borrowMarket.underlyingSymbol} and collateral market ${collateralMarket.underlyingSymbol}`,
         );
-        account.tokens[collateral.address] = 0n; // We mark this collateral as zero to avoid infinite loop and search for another one
-        console.log('borrower', account.address);
-        console.log('borrowMarket', borrow.address);
-        console.log('marketCollateral', collateral.address);
-        console.log('repayAmount', repayAmount);
-        console.log('repayToken', borrowMarket.underlyingSymbol);
+        console.error('borrower', account.address);
+        console.error('borrowMarket', borrow.address);
+        console.error('marketCollateral', collateral.address);
+        console.error('repayAmount', repayAmount);
+        console.error('repayToken', borrowMarket.underlyingSymbol);
         const parts = [
           'Path not found for liquidation:',
           `_borrower: ${account.address}`,
@@ -339,6 +446,7 @@ export class LiquidatorService extends Service {
         ];
 
         // this.telegramService.construcAndSendMessage(parts);
+        account.tokens[collateral.address] = 0n; // We mark this collateral as zero to avoid infinite loop and search for another one
         continue;
       }
 
@@ -595,8 +703,10 @@ export class LiquidatorService extends Service {
   ) {
     return (
       collateralValue >=
-      BigInt((Env.MINIMUM_LIQUIDATION_VALUE / 2) * 1e18) *
-        liquidationIncentiveMantissa
+      mul_Mantissa(
+        BigInt((Env.MINIMUM_LIQUIDATION_VALUE / 2) * 1e18),
+        liquidationIncentiveMantissa,
+      )
     );
   }
 }

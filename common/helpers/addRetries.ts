@@ -9,6 +9,10 @@ export const addRetries = async (
     try {
       return await someFunction(...args.filter(Boolean));
     } catch (e) {
+      if (e.message.includes('Transaction not found')) {
+        return null;
+      }
+
       console.error(e, `arguments: ${JSON.stringify(args)}`);
       console.warn(`retrying function -> ${someFunction.name}`);
       await delay();

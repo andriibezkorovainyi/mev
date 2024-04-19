@@ -52,7 +52,7 @@ export class MarketService extends Service {
         default:
           break;
         case MarketEventName.LiquidateBorrow:
-          this.liquidateBorrow(log);
+          await this.liquidateBorrow(log);
           break;
         // case MarketEventName.Mint:
         //   await this.mint(log);

@@ -22,7 +22,7 @@ describe('Bundle', () => {
 
   it('should trace bundle', async () => {
     const result = await bundleService.traceBundle(
-      '0xae5a3866020624daf7ed78e08337843335e53d5c6936b1aaded63836774db0e3',
+      '0xcf3531495b8f34498fd360420b5937d5aaf5fd7e6a758de6dd912fa2fb622c13',
     );
 
     console.log(result);

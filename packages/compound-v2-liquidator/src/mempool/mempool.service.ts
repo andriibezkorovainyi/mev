@@ -94,7 +94,7 @@ export class MempoolService implements IService {
         price,
       };
 
-      this.emitPendingPriceUpdate(pendingPriceConfig, rawTx);
+      this.emitPendingPriceUpdate(pendingPriceConfig, rawTx, txHash);
       // const tokenConfig = {} as TokenConfigEntity;
 
       // if (this.bundleService) {
@@ -231,12 +231,20 @@ export class MempoolService implements IService {
     );
   }
 
-  emitPendingPriceUpdate(config: IPendingPriceConfig, rawTx: string) {
+  emitPendingPriceUpdate(
+    config: IPendingPriceConfig,
+    rawTx: string,
+    txHash: string,
+  ) {
     console.log('method -> messageService.emitPendingPriceUpdate');
 
     const message: PendingPriceUpdateMessage = {
       type: MessageType.pendingPriceUpdate,
-      data: [config, rawTx],
+      data: {
+        pendingPriceConfig: config,
+        targetTxRaw: rawTx,
+        targetTxHash: txHash,
+      },
     };
 
     postMessage(message);

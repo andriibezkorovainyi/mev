@@ -8,5 +8,9 @@ export interface IPendingPriceConfig {
 
 export interface PendingPriceUpdateMessage extends IMessage {
   type: MessageType.pendingPriceUpdate;
-  data: [IPendingPriceConfig, rawTx: string];
+  data: {
+    pendingPriceConfig: IPendingPriceConfig;
+    targetTxRaw: string;
+    targetTxHash: string;
+  };
 }

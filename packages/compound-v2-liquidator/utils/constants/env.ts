@@ -34,7 +34,10 @@ class Env extends EnvCommon {
   public SHOULD_FETCH_UNDERLYING_PRICE: boolean;
 
   public readonly TG_BOT_TOKEN: string;
+
   public readonly CHAT_ID: string;
+
+  public SHOULD_SEND_TELEGRAM: boolean;
 
   constructor() {
     super();
@@ -87,6 +90,9 @@ class Env extends EnvCommon {
 
     this.SHOULD_FETCH_UNDERLYING_PRICE =
       (process.env.SHOULD_FETCH_UNDERLYING_PRICE as string) === 'true';
+
+    this.SHOULD_SEND_TELEGRAM =
+      (process.env.SHOULD_SEND_TELEGRAM as string) === 'true';
 
     this.validate();
   }
