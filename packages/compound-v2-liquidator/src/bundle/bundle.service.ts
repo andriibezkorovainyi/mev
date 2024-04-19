@@ -40,30 +40,26 @@ export class BundleService extends Service {
       },
     });
 
-    let response: any;
-    try {
-      response = await fetch(Env.BLOXROUTE_HTTPS_URL, {
-        method: 'POST',
-        tls: {
-          rejectUnauthorized: false,
-        },
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: Env.BLOXROUTE_AUTH_HEADER,
-        },
-        body,
-      });
-    } catch (error) {
-      console.error(error);
-    }
+    const response = await fetch(Env.BLOXROUTE_HTTPS_URL, {
+      method: 'POST',
+      tls: {
+        rejectUnauthorized: false,
+      },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: Env.BLOXROUTE_AUTH_HEADER,
+      },
+      body,
+    });
+    const data = await response.json();
 
-    if (!response.ok) {
-      return;
-    }
+    // @ts-ignore
+    const bundleHash = data.result?.bundleHash;
 
-    const {
-      result: { bundleHash },
-    } = await response.json();
+    if (!response.ok || !bundleHash) {
+      // @ts-ignore
+      throw new Error(data?.error?.message || JSON.stringify(data));
+    }
 
     return bundleHash;
   }
@@ -87,6 +83,7 @@ export class BundleService extends Service {
 
     let response: typeof Response;
     try {
+      // @ts-ignore
       response = await fetch(Env.FLASHBOTS_HTTPS_URL, {
         method: 'POST',
         headers: {
@@ -123,6 +120,7 @@ export class BundleService extends Service {
     let response: typeof Response;
 
     try {
+      // @ts-ignore
       response = await fetch(Env.FLASHBOTS_HTTPS_URL, {
         method: 'POST',
         headers: {
@@ -154,12 +152,12 @@ export class BundleService extends Service {
             // Authorization:
             //   'MGU5NGI1ZWYtYWE2OC00YmE4LWIwNmMtNjZjNzhkNmY5NjcxOjNkZjZmN2MwMDhiNGVjZjZkZmY3ZTE0ZjdhYmJkYWY3',
             // Authorization: Env.BLOXROUTE_AUTH_HEADER,
-            Authorization:
-              'NzdiNWYwNmItNTA3OC00ZWVkLTk4M2QtODQ0OWE3ZmI4ODMxOmE1NTE2ZGQyMDA2ZTkwNWRkY2Q2MThhZjk0NmRjOGJi',
+            // Authorization:
+            //   'NzdiNWYwNmItNTA3OC00ZWVkLTk4M2QtODQ0OWE3ZmI4ODMxOmE1NTE2ZGQyMDA2ZTkwNWRkY2Q2MThhZjk0NmRjOGJi',
             // Authorization:
             //   'ZmZkZjFiYWMtMTE1ZC00ZDU4LWI0ZDEtNGQwYWY5NGMyOGYyOmU2ZmZjOWRmNDNhNGJlN2NiODZhY2Y1ZTdhZTZkNjdh',
-            // Authorization:
-            //   'MzBjYTJiY2ItN2MwNS00NzMwLTllMDEtOWYxN2RhZjFmNDBkOjJhNTY5Yzk5M2M2N2FiNjg5NDc2YzE2ZDUxMjdmMzU0',
+            Authorization:
+              'MzBjYTJiY2ItN2MwNS00NzMwLTllMDEtOWYxN2RhZjFmNDBkOjJhNTY5Yzk5M2M2N2FiNjg5NDc2YzE2ZDUxMjdmMzU0',
           },
         },
       );

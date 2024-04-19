@@ -9,16 +9,29 @@ export class TelegramService extends Service {
     super();
   }
 
-  private async sendMessageToPeers(message: string) {
+  async sendMessage(message: string) {
+    console.debug('method -> telegramService.sendMessage');
+    if (!Env.SHOULD_SEND_TELEGRAM) return;
+
     const peers = Env.CHAT_ID.split(',');
 
     for (const peer of peers) {
-      this.bot.telegram.sendMessage(peer, message);
-    }
-  }
+      try {
+        if (message.length > 4096) {
+          const parts = message.split('\n');
+          const half = parts.splice(0, Math.floor(parts.length / 2));
 
-  async sendMessage(message: string) {
-    await this.sendMessageToPeers(message);
+          await this.bot.telegram.sendMessage(peer, half.join('\n'));
+          await this.bot.telegram.sendMessage(peer, parts.join('\n'));
+        } else {
+          await this.bot.telegram.sendMessage(peer, message);
+        }
+      } catch (error) {
+        console.error(error);
+        console.error('message', message);
+        throw error;
+      }
+    }
   }
 
   async construcAndSendMessage(parts: string[]) {
