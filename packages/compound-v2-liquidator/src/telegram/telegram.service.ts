@@ -28,7 +28,7 @@ export class TelegramService extends Service {
         }
       } catch (error) {
         console.error(error);
-        console.error('message', message);
+        console.log('message', message);
         throw error;
       }
     }
