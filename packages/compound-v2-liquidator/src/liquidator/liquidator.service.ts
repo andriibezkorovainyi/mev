@@ -685,7 +685,7 @@ export class LiquidatorService extends Service {
       collateralValue <= maxRepayValue ? collateralValue : maxRepayValue;
 
     const repayAmount = div_MantissaB(repayValue, priceBorrowedMantissa);
-    return repayAmount - 1000n; // Take 1000 wei less to avoid rounding errors
+    return repayAmount - 10000n; // Take 10000 wei less to avoid rounding errors
   }
 
   calculateSeizeTokens(
