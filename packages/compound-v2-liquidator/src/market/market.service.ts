@@ -14,6 +14,7 @@ import CErc20 from '../../../../common/compound-protocol/artifacts/CErc20.sol/CE
 import Env from '../../utils/constants/env.ts';
 import type { IDecodedLog } from '../../utils/interfaces/decoded-log.interface.ts';
 import type { TelegramService } from '../telegram/telegram.service.ts';
+import { mul_Mantissa } from '../../utils/math/ExpNoError.ts';
 
 export class MarketService extends Service {
   constructor(
@@ -256,14 +257,33 @@ export class MarketService extends Service {
     const marketLiquidated = this.storageService.getMarket(log.address);
     const marketCollateral = this.storageService.getMarket(cTokenCollateral);
 
+    const repayValue = Number(
+      mul_Mantissa(repayAmount, marketLiquidated.underlyingPriceMantissa) /
+        BigInt(1e18),
+    );
+    const seizeValue = Number(
+      mul_Mantissa(
+        seizeTokens,
+        mul_Mantissa(
+          marketLiquidated.underlyingPriceMantissa,
+          marketLiquidated.exchangeRateMantissa,
+        ),
+      ) / BigInt(1e18),
+    );
+
     const messageParts = [
-      `Liquidator: ${liquidator}`,
-      `Borrower: ${borrower}`,
-      `Market: ${marketLiquidated.symbol} ${marketLiquidated.address}`,
-      `Repay Amount: ${Number(repayAmount) / 10 ** marketLiquidated.underlyingDecimals} ${marketLiquidated.underlyingSymbol}`,
-      `Collateral: ${marketCollateral.symbol} ${marketCollateral.address}`,
-      `Block number: ${blockNumber}`,
-      `TxHash: ${txHash}`,
+      '---------------------',
+      `liquidator: ${liquidator}`,
+      `borrower: ${borrower}`,
+      `market: ${marketLiquidated.symbol} ${marketLiquidated.address}`,
+      `repayAmount: ${marketLiquidated.underlyingSymbol} ${Number(repayAmount) / 10 ** marketLiquidated.underlyingDecimals} ${marketLiquidated.underlyingSymbol}`,
+      `collateral: ${marketCollateral.symbol} ${marketCollateral.address}`,
+      '---------------------',
+      'Additional:',
+      `txHash: ${txHash}`,
+      `repayValue: $${repayValue}`,
+      `brutto: $${seizeValue - repayValue}`,
+      `blockNumber: ${blockNumber}`,
     ];
 
     await this.sendNewLiquidationMessage(messageParts);
