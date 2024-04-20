@@ -16,6 +16,7 @@ import Env from '../../utils/constants/env.ts';
 import { findAsset } from '../../utils/helpers/array.helpers.ts';
 import type {
   IPendingPriceConfig,
+  IPendingPriceUpdateData,
   PendingPriceUpdateMessage,
 } from '../mempool/pending-price-update.message.ts';
 import type { BundleService } from '../bundle/bundle.service.ts';
@@ -33,9 +34,10 @@ import type { IExecuteLiquidationData } from '../../utils/interfaces/execute-liq
 import type { TokenConfigEntity } from '../price-oracle/token-config.entity.ts';
 import type { MarketEntity } from '../market/market.entity.ts';
 import { Web3 } from 'web3';
+import type { ITxData } from '../../utils/interfaces/tx-data.interface.ts';
 
 export class LiquidatorService extends Service {
-  private readonly txData = new Map<string, [string, ILiquidationData]>();
+  private readonly txData = new Map<string, ITxData>();
 
   constructor(
     private readonly storageService: StorageService,
@@ -50,11 +52,10 @@ export class LiquidatorService extends Service {
 
   async processPendingPriceUpdate(message: PendingPriceUpdateMessage) {
     console.log('method -> liquidatorService.processPendingPriceUpdate');
-    const { pendingPriceConfig, targetTxRaw, targetTxHash } = message.data;
+    const { pendingPriceConfig, targetTxHash } = message.data;
 
     const { tokenConfigs, markets, oldPrices } = this.setupLiquidation(
-      pendingPriceConfig,
-      targetTxRaw,
+      message.data,
     );
 
     this.getEntities(tokenConfigs, markets, pendingPriceConfig);
@@ -76,15 +77,13 @@ export class LiquidatorService extends Service {
 
     await this.performCalculations(markets, pendingPriceConfig);
 
-    this.mutateResetPrices(tokenConfigs, markets, oldPrices);
-
     console.log(
       'markets',
       markets.map(({ symbol }) => symbol),
     );
     // console.log('Time of liquidity calculations:', Date.now() - start, 'ms');
 
-    const [rawTargetTx, liquidationData] = this.txData.get(
+    const { targetTxRaw, liquidationData, biggestBorrow } = this.txData.get(
       pendingPriceConfig.symbolHash,
     )!;
 
@@ -104,8 +103,9 @@ export class LiquidatorService extends Service {
     const blockNumber = this.storageService.getNetworkHeight() + 1;
 
     const collectDetails = (tx?: SignTransactionResult) => {
-      console.log('rawTargetTx', rawTargetTx);
-      console.log('rawCreatedTx', tx?.rawTransaction);
+      console.log('targetTxRaw', targetTxRaw);
+      console.log('createdTxRaw', tx?.rawTransaction);
+
       return [
         '----------------------',
         'Arguments:',
@@ -114,14 +114,16 @@ export class LiquidatorService extends Service {
         ),
         '----------------------',
         'Transactions:',
-        `createdTx: ${tx?.transactionHash || 'not created'}`,
-        `targetTx: ${targetTxHash}`,
+        `created: ${tx?.transactionHash || 'not created'}`,
+        `target: ${targetTxHash}`,
         '----------------------',
-        'General:',
+        'Additional:',
         `blockNumber: ${blockNumber}`,
         `serverTime: ${getDateString()}`,
       ];
     };
+
+    this.mutateGetBiggestLiquidationData(liquidationData, biggestBorrow.index);
 
     const tx = await this.createLiquidationTx(liquidationData, collectDetails);
 
@@ -137,7 +139,7 @@ export class LiquidatorService extends Service {
     console.log('txHash', tx.transactionHash);
 
     const bundleHash = await this.executeLiquidation({
-      rawTargetTx,
+      targetTxRaw,
       tx,
       blockNumber,
       collectDetails,
@@ -147,14 +149,41 @@ export class LiquidatorService extends Service {
 
     await this.reportLiquidationExecutionResult(bundleHash, tx, collectDetails);
 
+    this.mutateResetPrices(tokenConfigs, markets, oldPrices);
+
     this.txData.delete(pendingPriceConfig.symbolHash);
   }
 
-  setupLiquidation(pendingPriceConfig: IPendingPriceConfig, rawTx: string) {
+  mutateGetBiggestLiquidationData(
+    liquidationData: ILiquidationData,
+    biggestBorrowIndex: number,
+  ) {
+    for (const key in liquidationData) {
+      // @ts-ignore
+      liquidationData[key] = (liquidationData[key] as string[]).filter(
+        (_, index) => index === biggestBorrowIndex,
+      );
+    }
+    // const args = Object.values(liquidationData);
+    //
+    // const biggestBorrow = args.reduce((acc, data) => {
+    //   acc.push([data[biggestBorrowIndex]]);
+    //   return acc;
+    // }, []);
+    //
+    // return biggestBorrow;
+  }
+
+  setupLiquidation({
+    targetTxHash,
+    targetTxRaw,
+    pendingPriceConfig,
+  }: IPendingPriceUpdateData) {
     console.log('method -> liquidatorService.setupLiquidation');
-    this.txData.set(pendingPriceConfig.symbolHash, [
-      rawTx,
-      {
+    this.txData.set(pendingPriceConfig.symbolHash, {
+      targetTxRaw,
+      targetTxHash,
+      liquidationData: {
         _repayTokens: [],
         _cMarkets: [],
         _borrowers: [],
@@ -162,7 +191,11 @@ export class LiquidatorService extends Service {
         _cMarketCollaterals: [],
         _path: [],
       },
-    ]);
+      biggestBorrow: {
+        value: 0n,
+        index: -1,
+      },
+    });
 
     const oldPrices: bigint[] = [];
     const markets: MarketEntity[] = [];
@@ -285,13 +318,16 @@ export class LiquidatorService extends Service {
   }
 
   async sendLiquidationErrorToTelegram(parts: string[]) {
-    const message = `Liquidation error:\n${parts.join('\n')}`;
+    const message =
+      `Liquidation error:\n` +
+      '----------------------\n' +
+      `${parts.join('\n')}`;
 
     await this.telegramService.sendMessage(message);
   }
 
   async executeLiquidation({
-    rawTargetTx,
+    targetTxRaw,
     tx,
     blockNumber,
     collectDetails,
@@ -299,7 +335,7 @@ export class LiquidatorService extends Service {
     let bundleHash: string | undefined;
     try {
       bundleHash = await this.bundleService.submitBundleBLXR(blockNumber, [
-        rawTargetTx,
+        targetTxRaw,
         tx.rawTransaction,
       ]);
     } catch (e) {
@@ -315,7 +351,10 @@ export class LiquidatorService extends Service {
   }
 
   async sendLiquidationExecutionResultToTelegram(parts: string[]) {
-    const message = `Liquidation execution result:\n${parts.join('\n')}`;
+    const message =
+      `Liquidation execution result:\n` +
+      '----------------------\n' +
+      parts.join('\n');
 
     await this.telegramService.sendMessage(message);
   }
@@ -338,14 +377,15 @@ export class LiquidatorService extends Service {
   }
 
   async createLiquidationTx(
-    liquidationLoopData: ILiquidationData,
+    data: ILiquidationData,
     _collectDetails: () => string[],
   ) {
     console.log('method -> liquidatorService.createLiquidationTx');
 
     const address = Env.LIQUIDATOR_CONTRACT_ADDRESS;
     const abi = LiqBot_v1.abi.find((item) => item.name === 'liquidate');
-    const args: string[][] = Object.values(liquidationLoopData);
+    const args = Object.values(data);
+    console.log('args', data);
     const maxFeePerGas = this.storageService.getBaseFeePerGas() * 2n;
     const gas = (args[0].length * 1_500_000).toString();
 
@@ -417,7 +457,8 @@ export class LiquidatorService extends Service {
         collateral.address,
       );
 
-      const data = this.txData.get(symbolHash)![1];
+      const { liquidationData: data, biggestBorrow } =
+        this.txData.get(symbolHash)!;
 
       const path = this.getPath(
         borrowMarket.underlyingSymbol,
@@ -428,11 +469,6 @@ export class LiquidatorService extends Service {
         console.error(
           `Path not found for borrow market ${borrowMarket.underlyingSymbol} and collateral market ${collateralMarket.underlyingSymbol}`,
         );
-        console.error('borrower', account.address);
-        console.error('borrowMarket', borrow.address);
-        console.error('marketCollateral', collateral.address);
-        console.error('repayAmount', repayAmount);
-        console.error('repayToken', borrowMarket.underlyingSymbol);
         const parts = [
           'Path not found for liquidation:',
           `_borrower: ${account.address}`,
@@ -441,6 +477,7 @@ export class LiquidatorService extends Service {
           `_repayAmount: ${repayAmount}`,
           `_repayToken: ${borrowMarket.underlyingSymbol} ${borrowMarket.underlyingAddress}`,
           '----------------------',
+          'Additional:',
           `repayValue: $${Number(borrow.borrowValue / BigInt(1e18)) / 2}`,
           `collateralToken: ${collateralMarket.underlyingSymbol} ${collateralMarket.underlyingAddress}`,
         ];
@@ -448,6 +485,11 @@ export class LiquidatorService extends Service {
         // this.telegramService.construcAndSendMessage(parts);
         account.tokens[collateral.address] = 0n; // We mark this collateral as zero to avoid infinite loop and search for another one
         continue;
+      }
+
+      if (borrow.borrowValue > biggestBorrow.value) {
+        biggestBorrow.value = borrow.borrowValue;
+        biggestBorrow.index = data._repayTokens.length;
       }
 
       data._path.push(path);

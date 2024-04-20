@@ -6,11 +6,13 @@ export interface IPendingPriceConfig {
   price: bigint;
 }
 
+export interface IPendingPriceUpdateData {
+  pendingPriceConfig: IPendingPriceConfig;
+  targetTxRaw: string;
+  targetTxHash: string;
+}
+
 export interface PendingPriceUpdateMessage extends IMessage {
   type: MessageType.pendingPriceUpdate;
-  data: {
-    pendingPriceConfig: IPendingPriceConfig;
-    targetTxRaw: string;
-    targetTxHash: string;
-  };
+  data: IPendingPriceUpdateData;
 }

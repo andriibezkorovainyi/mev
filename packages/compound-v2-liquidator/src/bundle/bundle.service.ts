@@ -163,9 +163,12 @@ export class BundleService extends Service {
       );
     } catch (error) {
       console.error(error);
+      return;
     }
 
-    return await response.json();
+    const data = await response.json();
+
+    return data.message || data.error || data;
   }
 
   async validateBundleBLXR(blockNumber: number, txs: string[]) {
