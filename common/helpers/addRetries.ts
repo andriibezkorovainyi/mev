@@ -13,7 +13,11 @@ export const addRetries = async (
         return null;
       }
 
-      console.error(e, `arguments: ${JSON.stringify(args)}`);
+      if (e.message.includes('One of the blocks specified')) {
+      } else {
+        console.error(e, `arguments: ${JSON.stringify(args)}`);
+      }
+
       console.warn(`retrying function -> ${someFunction.name}`);
       await delay();
     }
