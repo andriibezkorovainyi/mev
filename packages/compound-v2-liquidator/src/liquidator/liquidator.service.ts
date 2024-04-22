@@ -60,10 +60,6 @@ export class LiquidatorService extends Service {
 
     this.getEntities(tokenConfigs, markets, pendingPriceConfig);
 
-    // console.log('tokenConfigs', tokenConfigs);
-    // console.log('markets', markets);
-    // console.log('oldPrices', oldPrices);
-
     this.mutateUpdatePrices(
       tokenConfigs,
       oldPrices,
@@ -81,8 +77,6 @@ export class LiquidatorService extends Service {
       'markets',
       markets.map(({ symbol }) => symbol),
     );
-    // console.log('Time of liquidity calculations:', Date.now() - start, 'ms');
-
     const { targetTxRaw, liquidationData, biggestBorrow } = this.txData.get(
       pendingPriceConfig.symbolHash,
     )!;
@@ -147,11 +141,38 @@ export class LiquidatorService extends Service {
 
     console.log('bundleHash', bundleHash);
 
+    const isTargetTxValid = await this.validateTargetTx(
+      targetTxHash,
+      blockNumber,
+    );
+
+    if (!isTargetTxValid) {
+      return;
+    }
+
     await this.reportLiquidationExecutionResult(bundleHash, tx, collectDetails);
 
     this.mutateResetPrices(tokenConfigs, markets, oldPrices);
 
     this.txData.delete(pendingPriceConfig.symbolHash);
+  }
+
+  async validateTargetTx(targetTxHash: string, blockNumber: number) {
+    const targetTx = await this.web3Service.getTransaction(targetTxHash);
+    const txBlockNumber: number = Number(targetTx?.blockNumber);
+
+    let isValid = true;
+
+    if (!targetTx) {
+      // skip
+    } else if (Number.isNaN(txBlockNumber)) {
+      // skip
+    }
+    if (txBlockNumber < blockNumber) {
+      isValid = false;
+    }
+
+    return isValid;
   }
 
   mutateGetBiggestLiquidationData(
