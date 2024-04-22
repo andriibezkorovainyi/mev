@@ -87,6 +87,8 @@ export class MempoolService implements IService {
 
       const price = this.getPriceFromInput(input, tokenConfig)!;
 
+      if (!price) return;
+
       console.log('Price:', price);
 
       const pendingPriceConfig: IPendingPriceConfig = {
@@ -157,16 +159,17 @@ export class MempoolService implements IService {
 
   getPriceFromInput(input: string, tokenConfig: TokenConfigEntity) {
     const report = this.decodeReport(input);
+
     if (!report) {
       console.error('Tx input does not contain a report');
       return;
     }
 
     const observations = this.parseObservations(report);
-    if (!observations) throw new Error('Invalid observations');
+    if (!observations) return;
 
     const median = observations[Math.floor(observations.length / 2)];
-    if (!median) throw new Error('Invalid median');
+    if (!median) return;
 
     if (!tokenConfig) throw new Error('No token config found');
 
