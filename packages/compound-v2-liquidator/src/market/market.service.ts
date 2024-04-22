@@ -263,11 +263,11 @@ export class MarketService extends Service {
     );
     const seizeValue = Number(
       mul_Mantissa(
-        seizeTokens,
         mul_Mantissa(
           marketLiquidated.underlyingPriceMantissa,
           marketLiquidated.exchangeRateMantissa,
         ),
+        seizeTokens,
       ) / BigInt(1e18),
     );
 
@@ -282,7 +282,7 @@ export class MarketService extends Service {
       'Additional:',
       `txHash: ${txHash}`,
       `repayValue: $${repayValue}`,
-      `brutto: $${seizeValue - repayValue}`,
+      `revenue: $${seizeValue - repayValue}`,
       `blockNumber: ${blockNumber}`,
     ];
 
