@@ -14,6 +14,8 @@ export const addRetries = async (
       }
 
       if (e.message.includes('One of the blocks specified')) {
+        await delay();
+        continue;
       } else {
         console.error(e, `arguments: ${JSON.stringify(args)}`);
       }
