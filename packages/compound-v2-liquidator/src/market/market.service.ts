@@ -261,15 +261,15 @@ export class MarketService extends Service {
       mul_Mantissa(repayAmount, marketLiquidated.underlyingPriceMantissa) /
         BigInt(1e18),
     );
-    const seizeValue = Number(
-      mul_Mantissa(
-        mul_Mantissa(
-          marketLiquidated.underlyingPriceMantissa,
-          marketLiquidated.exchangeRateMantissa,
-        ),
-        seizeTokens,
-      ) / BigInt(1e18),
-    );
+    // const seizeValue = Number(
+    //   mul_Mantissa(
+    //     mul_Mantissa(
+    //       marketLiquidated.underlyingPriceMantissa,
+    //       marketLiquidated.exchangeRateMantissa,
+    //     ),
+    //     seizeTokens,
+    //   ) / BigInt(1e18),
+    // );
 
     const messageParts = [
       '---------------------',
@@ -282,7 +282,7 @@ export class MarketService extends Service {
       'Additional:',
       `txHash: ${txHash}`,
       `repayValue: $${repayValue}`,
-      `revenue: $${seizeValue - repayValue}`,
+      // `revenue: $${seizeValue - repayValue}`,
       `blockNumber: ${blockNumber}`,
     ];
 
