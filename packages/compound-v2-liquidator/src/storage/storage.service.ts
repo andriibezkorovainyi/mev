@@ -47,6 +47,10 @@ export class StorageService extends Service {
 
   async initMarkets() {
     this.markets = (await this.cacheService.get('markets')) || {};
+
+    for (const key in this.markets) {
+      this.markets[key].pendingUnderlyingPriceMantissa = 0n;
+    }
   }
 
   async initTokenConfigs() {

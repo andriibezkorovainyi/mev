@@ -71,7 +71,9 @@ export class LiquidatorService extends Service {
       throw new Error('No markets found');
     }
 
-    await this.performCalculations(markets, pendingPriceConfig);
+    await this.collectLiquidationData(markets, pendingPriceConfig);
+
+    this.mutateResetPrices(tokenConfigs, markets, oldPrices);
 
     console.log(
       'markets',
@@ -195,8 +197,6 @@ export class LiquidatorService extends Service {
 
     await this.reportLiquidationExecutionResult(bundleHash, tx, collectDetails);
 
-    this.mutateResetPrices(tokenConfigs, markets, oldPrices);
-
     this.txData.delete(pendingPriceConfig.symbolHash);
   }
 
@@ -283,7 +283,7 @@ export class LiquidatorService extends Service {
     }
   }
 
-  async performCalculations(
+  async collectLiquidationData(
     markets: MarketEntity[],
     pendingPriceConfig: IPendingPriceConfig,
   ) {
