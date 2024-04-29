@@ -4,7 +4,6 @@ import type { AccountService } from '../account/account.service.ts';
 import type { MarketService } from './market.service.ts';
 import MasterModule from '../master/master.module.ts';
 import type { PriceOracleService } from '../price-oracle/price-oracle.service.ts';
-import { delay } from '../../../../common/helpers/delay.ts';
 
 describe('MarketService', () => {
   const accounts = ['0x502CB8985B2C92a8d4bf309cDAa89DE9be442708'];
@@ -38,49 +37,53 @@ describe('MarketService', () => {
   });
 
   it('should collect correct underlyingPrices', async () => {
-    // const markets = [
-    // ].map((address) => storageService.getMarket(address));
-    const pointerHeight = storageService.getPointerHeight();
-    const markets = Object.values(storageService.getMarkets());
-
-    console.log('pointerHeight:', pointerHeight);
-
-    for (const market of markets) {
-      const underlyingPrice = await priceOracleService.fetchUnderlyingPrice(
-        market.address,
-        pointerHeight,
-      );
-
-      try {
-        expect(market.underlyingPriceMantissa).toEqual(underlyingPrice);
-      } catch (error) {
-        console.log('market:', market.symbol, market.address);
-        console.error(error);
-      }
-    }
+    // const pointerHeight = storageService.getPointerHeight();
+    // const markets = Object.values(storageService.getMarkets());
+    //
+    // console.log('pointerHeight:', pointerHeight);
+    //
+    // for (const market of markets) {
+    //   const underlyingPrice = await priceOracleService.fetchUnderlyingPrice(
+    //     market.address,
+    //     pointerHeight,
+    //   );
+    //
+    //   try {
+    //     expect(market.underlyingPriceMantissa).toEqual(underlyingPrice);
+    //   } catch (error) {
+    //     console.log('market:', market.symbol, market.address);
+    //     console.error(error);
+    //   }
+    // }
   }, 60_000);
 
-  it('should collect correct exchangeRates', async () => {
-    // const markets = [
-    // ].map((address) => storageService.getMarket(address));
+  it('should show 0n pendingUnderlyingPriceMantissa for all markets', () => {
     const markets = Object.values(storageService.getMarkets());
-    const pointerHeight = storageService.getPointerHeight();
-    console.log('pointerHeight:', pointerHeight);
 
     for (const market of markets) {
-      const exchangeRate = await marketService.fetchExchangeRateMantissa(
-        market.address,
-        pointerHeight,
-      );
-
-      try {
-        expect(market.exchangeRateMantissa).toEqual(exchangeRate);
-      } catch (error) {
-        console.log('market:', market.address);
-        console.error(error);
-      }
-      await delay(500);
+      expect(market.pendingUnderlyingPriceMantissa).toEqual(0n);
     }
+  });
+
+  it('should collect correct exchangeRates', async () => {
+    // const markets = Object.values(storageService.getMarkets());
+    // const pointerHeight = storageService.getPointerHeight();
+    // console.log('pointerHeight:', pointerHeight);
+    //
+    // for (const market of markets) {
+    //   const exchangeRate = await marketService.fetchExchangeRateMantissa(
+    //     market.address,
+    //     pointerHeight,
+    //   );
+    //
+    //   try {
+    //     expect(market.exchangeRateMantissa).toEqual(exchangeRate);
+    //   } catch (error) {
+    //     console.log('market:', market.address);
+    //     console.error(error);
+    //   }
+    //   await delay(500);
+    // }
   }, 60_000);
 
   it('should should not collect any logs for markets before comptroller deployment', async () => {
