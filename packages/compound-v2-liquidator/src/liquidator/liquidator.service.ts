@@ -99,51 +99,8 @@ export class LiquidatorService extends Service {
     const blockNumber = this.storageService.getNetworkHeight() + 1;
 
     const collectDetails = (tx?: SignTransactionResult) => {
-      // console.log('targetTxRaw', targetTxRaw);
-      // console.log('createdTxRaw', tx?.rawTransaction);
-      const borrower = this.storageService.getAccount(
-        liquidationData._borrowers[0],
-      )!;
-
-      console.log('----------------------');
-      console.log('Information about borrower calculations, after liquidation');
-
-      if (!borrower) {
-        console.log('Borrower not found');
-      }
-
-      const [liq, sho] = this.calculateAccountLiquidity(borrower);
-      console.log('Account:', borrower.address);
-      console.log('liquidity', liq);
-      console.log('shortfall', sho);
-      console.log('token balances', borrower.tokens);
-      console.log('assets', borrower.assets);
-      console.log('----------------------');
-      console.log('Information about markets, participated in calculations');
-      const markets = borrower.assets.map(({ address }) =>
-        this.storageService.getMarket(address),
-      );
-      console.log(
-        'markets',
-        markets.map(
-          ({
-            symbol,
-            address,
-            underlyingAddress,
-            underlyingPriceMantissa,
-            pendingUnderlyingPriceMantissa,
-            underlyingSymbol,
-            exchangeRateMantissa,
-          }) =>
-            [
-              `market: ${symbol} ${address}`,
-              `underlying: ${underlyingSymbol} ${underlyingAddress}`,
-              `underlyingPriceMantissa: ${underlyingPriceMantissa}`,
-              `pendingUnderlyingPriceMantissa: ${pendingUnderlyingPriceMantissa}`,
-              `exchangeRateMantissa: ${exchangeRateMantissa}`,
-            ].join('\n'),
-        ),
-      );
+      console.log('targetTxRaw', targetTxRaw);
+      console.log('createdTxRaw', tx?.rawTransaction);
 
       return [
         '----------------------',
@@ -450,7 +407,9 @@ export class LiquidatorService extends Service {
     const abi = LiqBot_v1.abi.find((item) => item.name === 'liquidate');
     const args = Object.values(data);
     console.log('args', data);
-    const maxFeePerGas = this.storageService.getBaseFeePerGas() * 2n;
+    const maxFeePerGas = BigInt(
+      Number(this.storageService.getBaseFeePerGas()) * 1.5,
+    );
     const gas = (args[0].length * 1_500_000).toString();
 
     // console.log('liquidationLoopData', liquidationLoopData);
