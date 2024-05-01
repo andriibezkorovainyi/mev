@@ -53,6 +53,15 @@ export class BlockService extends Service {
         'New base fee per gas:',
         this.storageService.getBaseFeePerGas(),
       );
+
+      console.log(
+        'typeof base fee is string:',
+        typeof baseFeePerGas === 'string',
+      );
+      console.log(
+        'typeof base fee is bigint:',
+        typeof baseFeePerGas === 'bigint',
+      );
       await this.collectorService.collectPastEvents(false);
     } catch (e) {
       console.error(e);
