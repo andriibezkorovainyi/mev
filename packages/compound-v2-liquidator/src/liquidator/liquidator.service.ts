@@ -407,12 +407,19 @@ export class LiquidatorService extends Service {
     const abi = LiqBot_v1.abi.find((item) => item.name === 'liquidate');
     const args = Object.values(data);
     console.log('args', data);
-    const maxFeePerGas = BigInt(
-      Number(this.storageService.getBaseFeePerGas()) * 1.5,
-    );
     const gas = (args[0].length * 1_500_000).toString();
 
-    // console.log('liquidationLoopData', liquidationLoopData);
+    let maxFeePerGas;
+
+    try {
+      maxFeePerGas = BigInt(
+        Number(this.storageService.getBaseFeePerGas()) * 1.5,
+      );
+    } catch (e) {
+      console.error(e);
+      console.log('baseFeePerGas', this.storageService.getBaseFeePerGas());
+      maxFeePerGas = this.storageService.getBaseFeePerGas() * 2n;
+    }
 
     let tx: SignTransactionResult | undefined;
     try {
