@@ -61,6 +61,8 @@ export class StorageService extends Service {
     this.baseFeePerGas = BigInt(
       (await this.cacheService.get('baseFeePerGas')) || 0,
     );
+
+    console.log('Base fee per gas after init:', this.baseFeePerGas);
   }
 
   async initComptroller() {
