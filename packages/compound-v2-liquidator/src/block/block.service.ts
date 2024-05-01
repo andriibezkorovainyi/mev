@@ -48,6 +48,8 @@ export class BlockService extends Service {
 
       this.storageService.setNetworkHeight(number);
       this.storageService.setBaseFeePerGas(baseFeePerGas);
+
+      console.log('New base fee per gas:', baseFeePerGas);
       await this.collectorService.collectPastEvents(false);
     } catch (e) {
       console.error(e);
