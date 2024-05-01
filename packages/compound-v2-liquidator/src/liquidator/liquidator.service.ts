@@ -408,18 +408,21 @@ export class LiquidatorService extends Service {
     const args = Object.values(data);
     console.log('args', data);
     const gas = (args[0].length * 1_500_000).toString();
+    const maxFeePerGas = BigInt(
+      Math.round(Number(this.storageService.getBaseFeePerGas()) * 1.5),
+    );
 
-    let maxFeePerGas;
-
-    try {
-      maxFeePerGas = BigInt(
-        Number(this.storageService.getBaseFeePerGas()) * 1.5,
-      );
-    } catch (e) {
-      console.error(e);
-      console.log('baseFeePerGas', this.storageService.getBaseFeePerGas());
-      maxFeePerGas = this.storageService.getBaseFeePerGas() * 2n;
-    }
+    // let maxFeePerGas;
+    //
+    // try {
+    //   maxFeePerGas = BigInt(
+    //     Number(this.storageService.getBaseFeePerGas()) * 1.5,
+    //   );
+    // } catch (e) {
+    //   console.error(e);
+    //   console.log('baseFeePerGas', this.storageService.getBaseFeePerGas());
+    //   maxFeePerGas = this.storageService.getBaseFeePerGas() * 2n;
+    // }
 
     let tx: SignTransactionResult | undefined;
     try {
