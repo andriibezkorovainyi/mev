@@ -154,6 +154,10 @@ export class StorageService extends Service {
     ]);
   }
 
+  async cacheAccounts() {
+    await this.cacheService.set('accounts', Array.from(this.accounts));
+  }
+
   async cacheTokenConfigs() {
     await this.cacheService.set('tokenConfigs', this.tokenConfigs);
   }
