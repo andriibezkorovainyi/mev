@@ -48,20 +48,25 @@ export class BlockService extends Service {
 
       this.storageService.setNetworkHeight(number);
       this.storageService.setBaseFeePerGas(baseFeePerGas);
+      const newBaseFeePerGas = this.storageService.getBaseFeePerGas();
 
-      console.log(
-        'New base fee per gas:',
-        this.storageService.getBaseFeePerGas(),
-      );
+      console.log('New base fee per gas:', newBaseFeePerGas);
 
       console.log(
         'typeof base fee is string:',
-        typeof baseFeePerGas === 'string',
+        typeof newBaseFeePerGas === 'string',
       );
       console.log(
         'typeof base fee is bigint:',
-        typeof baseFeePerGas === 'bigint',
+        typeof newBaseFeePerGas === 'bigint',
       );
+
+      try {
+        console.log('number of base fee', Number(newBaseFeePerGas));
+      } catch (e) {
+        console.error(e);
+      }
+
       await this.collectorService.collectPastEvents(false);
     } catch (e) {
       console.error(e);
