@@ -53,7 +53,7 @@ describe('AccountService', () => {
 
   it('should collect many balances correct', async () => {
     const accounts = Array.from(
-      new Set(['0x5d6DC617D38655254Ea718044D37451E75144357']),
+      new Set(['0xFeECA8db8b5f4Efdb16BA43d3D06ad2F568a52E3']),
     ).map((address) => storageService.getAccount(address)!);
 
     const pointerHeight = storageService.getPointerHeight();
@@ -96,72 +96,40 @@ describe('AccountService', () => {
 
   it('should collect account borrows correct', async () => {
     // const accounts = Array.from(storageService.getAccounts().values());
-    // const accounts = Array.from(
-    //   new Set([
-    //     '0x87279585d52f534A2d2E453518cD7890c5762d19',
-    //     '0x1b622CA9C74185A7e21351Ae9AC5ea74b9e8a75b',
-    //     '0x1b622CA9C74185A7e21351Ae9AC5ea74b9e8a75b',
-    //     '0x1b622CA9C74185A7e21351Ae9AC5ea74b9e8a75b',
-    //     '0x1b622CA9C74185A7e21351Ae9AC5ea74b9e8a75b',
-    //     '0x1b622CA9C74185A7e21351Ae9AC5ea74b9e8a75b',
-    //     '0x1b622CA9C74185A7e21351Ae9AC5ea74b9e8a75b',
-    //     '0x1b622CA9C74185A7e21351Ae9AC5ea74b9e8a75b',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xf52A01ba9a57A54F50bCD5fFC1924d897E47bC15',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xB9988c00739E59B80fF8ddc61f00fdC7e7C84688',
-    //     '0xD19a40c9ad255ac0ea9F771f0D6f08D0A84F1554',
-    //     '0x7420fA58bA44E1141d5E9ADB6903BE549f7cE0b5',
-    //   ]),
-    // ).map((address) => storageService.getAccount(address)!);
-    //
-    // let count = 15;
-    // for (let i = 0; i < accounts.length; i++) {
-    //   if (count === 0) {
-    //     break;
-    //   }
-    //   count -= 1;
-    //
-    //   const account = accounts[i];
-    //   const assets = account.assets;
-    //
-    //   for (const asset of assets) {
-    //     const accountBorrows = accountService.borrowBalance(asset);
-    //
-    //     const fetchedBorrows = await accountService.fetchAccountBorrows(
-    //       account.address,
-    //       asset.address,
-    //       pointerHeight,
-    //     );
-    //
-    //     try {
-    //       expect(accountBorrows).toEqual(fetchedBorrows);
-    //     } catch (e) {
-    //       console.error(e);
-    //       console.log('account address', account.address);
-    //       console.log('asset', asset);
-    //       console.log('accountBorrows', accountBorrows);
-    //       console.log('fetchedBorrows', fetchedBorrows);
-    //     }
-    //   }
-    // }
+    const accounts = Array.from(
+      new Set(['0xFeECA8db8b5f4Efdb16BA43d3D06ad2F568a52E3']),
+    ).map((address) => storageService.getAccount(address)!);
+
+    let count = 15;
+    for (let i = 0; i < accounts.length; i++) {
+      if (count === 0) {
+        break;
+      }
+      count -= 1;
+
+      const account = accounts[i];
+      const assets = account.assets;
+
+      for (const asset of assets) {
+        const accountBorrows = accountService.borrowBalance(asset);
+
+        const fetchedBorrows = await accountService.fetchAccountBorrows(
+          account.address,
+          asset.address,
+          pointerHeight,
+        );
+
+        try {
+          expect(accountBorrows).toEqual(fetchedBorrows);
+        } catch (e) {
+          console.error(e);
+          console.log('account address', account.address);
+          console.log('asset', asset);
+          console.log('accountBorrows', accountBorrows);
+          console.log('fetchedBorrows', fetchedBorrows);
+        }
+      }
+    }
   }, 20_000);
 
   // it('should correct parse account token balance', async () => {
