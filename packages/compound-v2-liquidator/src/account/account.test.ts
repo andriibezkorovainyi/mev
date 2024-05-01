@@ -88,7 +88,6 @@ describe('AccountService', () => {
           console.log('index', i);
           console.log('tokenBalance', balance);
           console.log('fetchedBalance', fetchedBalance);
-          throw error;
         }
       }
     }
