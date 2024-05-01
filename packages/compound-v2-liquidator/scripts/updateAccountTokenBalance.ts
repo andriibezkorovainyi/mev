@@ -6,6 +6,7 @@ async function updateAccountTokenBalance(): Promise<void> {
     masterModule.accountModule.getService('accountService');
   const storageService =
     masterModule.storageModule.getService('storageService');
+  await storageService.init();
 
   const pointerHeight = storageService.getPointerHeight();
   const account = storageService.getAccount(
@@ -24,6 +25,8 @@ async function updateAccountTokenBalance(): Promise<void> {
   account!.tokens[cToken] = fetchedBalance;
 
   await storageService.cacheAccounts();
+
+  console.log('Account token balance updated successfully!');
 }
 
 updateAccountTokenBalance();
