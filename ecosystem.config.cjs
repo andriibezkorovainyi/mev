@@ -18,7 +18,8 @@ module.exports = {
           // BloxRoute
           BLOXROUTE_WS_URL: 'wss://13.213.141.24/ws', // Singapore
           BLOXROUTE_HTTPS_URL: 'https://mev.api.blxrbdn.com',
-          BLOXROUTE_AUTH_HEADER: 'N2Q0MzE5NzYtMDY1Ny00YjM3LWFiZjEtYzBiNTRhYjJjYWUxOmY0ZDc2MWVkNmIyZjlkYzNiYWEzNWIzZTM0NTFiMjFh',
+          // BLOXROUTE_AUTH_HEADER: 'N2Q0MzE5NzYtMDY1Ny00YjM3LWFiZjEtYzBiNTRhYjJjYWUxOmY0ZDc2MWVkNmIyZjlkYzNiYWEzNWIzZTM0NTFiMjFh',
+          BLOXROUTE_AUTH_HEADER: 'YmIzYTc3OGUtN2U0Yi00MjdiLTg5ZTEtZWE3MWUyZjM2NGYzOmU5NWY1NWRkZWZlODNjMDM5MDQzMjI4YmVlMjZiYjBm',
           // Flashbots
           FLASHBOTS_HTTPS_URL: 'https://relay.flashbots.net',
           // Compound V2
