@@ -1,78 +1,92 @@
-sudo apt update
-sudo apt install unzip
-`sudo apt-get update
-sudo apt-get upgrade`
+# MEV — Liquidation Bot Monorepo
 
-`nano ~/.bashrc`
+Monorepo for MEV/liquidation bots on Ethereum. Built with [Bun](https://bun.sh) and managed as a workspace.
 
-# Запуск ssh-agent и добавление ключа
+## Packages
 
-if [ -z "$SSH_AUTH_SOCK" ]; then
-eval "$(ssh-agent -s)"
-ssh-add ~/.ssh/id_rsa
-fi
-eval $(keychain --eval --agents ssh id_rsa)
-alias log='tail -f -n 100'
-alias cdp='cd /opt/mev'
+| Package | Description |
+|---------|-------------|
+| [`compound-v2-liquidator`](./packages/compound-v2-liquidator) | Liquidation bot for Compound V2 on Ethereum mainnet |
+| [`contracts-foundry`](./packages/contracts-foundry) | Solidity smart contracts (liquidator contract, scripts, tests) |
 
-```
-chmod 600 /root/.ssh/id_rsa
+## Stack
 
-source ~/.bashrc
+- **Runtime**: Bun
+- **Process manager**: PM2
+- **Blockchain**: Web3.js v4
+- **MEV relay**: BloxRoute (bundle submission)
+- **Flashbots**: Flashbots relay
+- **Notifications**: Telegram bot
 
-apt install keychain
+## Setup
 
+### Prerequisites
 
-cd /opt/
-
-apt install git
-
-```
-
-```
-
-git clone git@github.com:andriibezkorovainyi/mev.git
-
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-
-source ~/.bashrc
-
-nvm install 18 --lts
-
-```
-
-```
-
-npm i -g yarn pm2@latest
-
-sudo apt install lsb-release
-curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
-sudo apt-get update
-sudo apt-get install redis
-sudo systemctl enable redis-server
-```
-
-# mev
-
-find a path to bun executable
-
-Move it to /usr/local/bin
+- [Bun](https://bun.sh) >= 1.0
+- [PM2](https://pm2.keymetrics.io/) (for production)
 
 ```bash
-sudo ln -s /home/username/.bun/bin/bun /usr/local/bin/bun
+npm i -g pm2
 ```
 
-To install dependencies:
+### Install dependencies
 
 ```bash
 bun install
 ```
 
-To run:
+### Build
 
 ```bash
-bun run main.ts
+bun run build
+# or just compound-v2-liquidator:
+bun run build:compv2
 ```
 
-This project was created using `bun init` in bun v1.0.29. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+## Running
+
+### Development
+
+```bash
+cd packages/compound-v2-liquidator
+bun run dev:master
+```
+
+### Production (PM2)
+
+```bash
+bun run prod
+# or from the package:
+cd packages/compound-v2-liquidator
+bun run prod
+```
+
+PM2 config is in [`ecosystem.config.cjs`](./ecosystem.config.cjs).
+
+## Server setup (Ubuntu)
+
+```bash
+sudo apt update && sudo apt install unzip git lsb-release keychain
+
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
+
+# Make bun available system-wide
+sudo ln -s ~/.bun/bin/bun /usr/local/bin/bun
+
+# Install Redis
+curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+sudo apt-get update && sudo apt-get install redis
+sudo systemctl enable redis-server
+
+# Install PM2
+npm i -g pm2
+
+# Clone and start
+git clone git@github.com:andriibezkorovainyi/mev.git /opt/mev
+cd /opt/mev
+bun install
+bun run build
+bun run prod
+```
